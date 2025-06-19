@@ -1,0 +1,38 @@
+From 8b5e776b564ba705733b256a82dcb8d6e47cf471 Mon Sep 17 00:00:00 2001
+From: Frank Mutuma <frankmutuma6@gmail.com>
+Date: Thu, 19 Jun 2025 21:26:40 +0300
+Subject: [PATCH 1/4] first black screen app structure, contains the black
+ screen layout am gonna use
+
+---
+ app/src/main/res/layout/activity_main.xml | 18 ++++++++++++++++++
+ 1 file changed, 18 insertions(+)
+ create mode 100644 app/src/main/res/layout/activity_main.xml
+
+diff --git a/app/src/main/res/layout/activity_main.xml b/app/src/main/res/layout/activity_main.xml
+new file mode 100644
+index 0000000..068be08
+--- /dev/null
++++ b/app/src/main/res/layout/activity_main.xml
+@@ -0,0 +1,18 @@
++<?xml version="1.0" encoding="utf-8"?>
++<FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
++    android:layout_width="match_parent"
++    android:layout_height="match_parent"
++    android:background="@android:color/black">
++
++    <View
++        android:layout_width="match_parent"
++        android:layout_height="match_parent"
++        android:background="@android:color/black" />
++	<TextView
++	android:text="@string/hello_world"
++	android:layout_width="wrap_content"
++	android:layout_height="wrap_content" />
++	
++
++</FrameLayout>
++
+-- 
+2.50.1
+

@@ -1,0 +1,30 @@
+From ab3151d64245d10436aad424a6c30d04c6554015 Mon Sep 17 00:00:00 2001
+From: Frank Mutuma <frankmutuma6@gmail.com>
+Date: Fri, 20 Jun 2025 19:18:47 +0300
+Subject: [PATCH 3/4] added brightness control both in-app and system wide when
+ the app is in use, system wide may require write system permission
+
+---
+ app/src/main/AndroidManifest.xml | 7 +++++--
+ 1 file changed, 5 insertions(+), 2 deletions(-)
+
+diff --git a/app/src/main/AndroidManifest.xml b/app/src/main/AndroidManifest.xml
+index b6ae764..48842c1 100644
+--- a/app/src/main/AndroidManifest.xml
++++ b/app/src/main/AndroidManifest.xml
+@@ -1,7 +1,10 @@
+ <?xml version="1.0" encoding="utf-8"?>
+ <manifest xmlns:android="http://schemas.android.com/apk/res/android"
+-    package="com.smarttechnologies.blackscreen" >
+-
++		xmlns:tools="http://schemas.android.com/tools"
++		package="com.smarttechnologies.blackscreen">
++	<uses-permission 
++		android:name="android.permission.WRITE_SETTINGS" 
++		tools:ignore="ProtectedPermissions"/>
+     <application
+         android:allowBackup="true"
+         android:icon="@drawable/ic_launcher"
+-- 
+2.50.1
+
