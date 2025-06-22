@@ -9,6 +9,7 @@
         android:layout_height="match_parent"
         android:background="@android:color/black"/>
 	<TextView
+		android:id="@+id/txtoutput"
 	android:text="@string/text"
 	android:layout_width="wrap_content"
 	android:layout_height="wrap_content"
