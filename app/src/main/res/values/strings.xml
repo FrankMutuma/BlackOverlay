@@ -1,3 +1,4 @@
 <resources>
     <string name="app_name">Black Overlay </string>
+	<string name="text">this is the main blackscreen activity to be!</string>
 </resources>

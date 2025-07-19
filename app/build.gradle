@@ -25,9 +25,33 @@ sourceCompatibility JavaVersion.VERSION_1_8
 targetCompatibility JavaVersion.VERSION_1_8
 }
 dependencies {
-implementation 'androidx.appcompat:appcompat:1.7.1'
-implementation 'com.google.android.material:material:1.12.0'
-implementation 'androidx.constraintlayout:constraintlayout:2.2.1'
-implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.23'
+
+    // Required for AppCompatActivity and general AndroidX compatibility
+    implementation 'androidx.appcompat:appcompat:1.7.0' // Or latest stable version
+
+    // Essential for modern full-screen control (WindowCompat, WindowInsetsControllerCompat)
+    implementation 'androidx.core:core-ktx:1.13.1' // Or latest stable version
+
+    // For ActivityResultLauncher and ActivityResultContracts
+    implementation 'androidx.activity:activity-ktx:1.9.0' // Or latest stable version
+
+    // For Material Design components (FloatingActionButton, Toolbar, TabLayout, etc.)
+    // You will need this for building the full UI from your screenshots
+    implementation 'com.google.android.material:material:1.12.0' // Or latest stable version
+
+    // For ConstraintLayout (already likely there, but confirm)
+    implementation 'androidx.constraintlayout:constraintlayout:2.2.1' // Or latest stable version
+
+    // If you plan to use Fragments for the tabs
+    implementation 'androidx.fragment:fragment-ktx:1.8.1' // Or latest stable version
+    implementation 'androidx.viewpager2:viewpager2:1.1.0' // Or latest stable version
+
+    // Existing test dependencies (keep these)
+    testImplementation 'junit:junit:4.13.2'
+    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
+    androidTestImplementation 'androidx.test.espresso:espresso-core:3.6.1'
+	
+	implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.23'
 }
+
 }

@@ -1,369 +1,376 @@
-package com.smarttechnologies.app.blackOverlay;
+package com.smarttechnologies.app.blackoverlay;
 
-import android.app.Activity;
 import android.content.ContentResolver;
 import android.content.Intent;
 import android.net.Uri;
 import android.os.Build;
 import android.os.Bundle;
 import android.provider.Settings;
+import android.util.Log;
 import android.view.View;
 import android.view.Window;
 import android.view.WindowManager;
+import android.widget.TextView;
 import android.widget.Toast;
-import android.util.Log;
-import android.widget.TextView; // Specific import for TextView
 
-public class MainActivity extends Activity
-{
+import androidx.activity.result.ActivityResultLauncher;
+import androidx.activity.result.contract.ActivityResultContracts;
+import androidx.appcompat.app.AppCompatActivity;
+import androidx.core.view.WindowCompat;
+import androidx.core.view.WindowInsetsCompat;
+import androidx.core.view.WindowInsetsControllerCompat;
 
-    private static final String TAG = "BrightnessControl"; // Tag for Logcat messages
-    private static final int PERMISSION_REQUEST_CODE = 123;
+public class MainActivity extends AppCompatActivity {
 
-    private int originalSystemBrightnessValue = -1;
-    private int originalSystemBrightnessMode = -1;
-    private float originalWindowBrightness = -2.0f;
-	private TextView txttext; // Declared here
+	private static final String TAG = "BrightnessControl";
+	private static final int SYSTEM_BRIGHTNESS_MIN = 1; // Android's actual minimum system brightness
+	private static final float WINDOW_BRIGHTNESS_MIN = 0.0f; // use 0.01f as Smallest value for window brightness (0.0f might be truly invisible)
 
-    private boolean isSystemBrightnessControlled = false;
+	private int originalSystemBrightnessValue = -1; // Value of system brightness before our app changed it
+	private int originalSystemBrightnessMode = -1; // Mode (manual/auto) of system brightness before our app changed it
+	private float originalWindowBrightness = -2.0f; // Value of window brightness before our app changed it (-2.0f as uninitialized marker)
 
-    @Override
-    protected void onCreate(Bundle savedInstanceState)
-    {
-        super.onCreate(savedInstanceState);
-        Log.d(TAG, "onCreate: Activity created.");
+	private boolean isSystemBrightnessControlled = false; // Tracks if system permission was successfully used
 
-        // Existing full-screen UI setup (moved general window settings up)
-        requestWindowFeature(Window.FEATURE_NO_TITLE);
-        getWindow().setFlags(WindowManager.LayoutParams.FLAG_FULLSCREEN,
-                             WindowManager.LayoutParams.FLAG_FULLSCREEN);
+	// Variable to track what brightness value the app is *currently* applying to its UI
+	private float brightnessTrackValue = 1.0f; // Default to full brightness for the tracker initially
 
-        getWindow().getDecorView().setSystemUiVisibility(
-            View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-            | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-            | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-            | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-            | View.SYSTEM_UI_FLAG_FULLSCREEN
-            | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+	private TextView txttext;
+	private ActivityResultLauncher<Intent> writeSettingsLauncher;
 
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P)
-        {
-            getWindow().getAttributes().layoutInDisplayCutoutMode =
-                WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
-        }
+	@Override
+	protected void onCreate(Bundle savedInstanceState) {
+		super.onCreate(savedInstanceState);
+		Log.d(TAG, "onCreate: Activity created.");
 
-        // --- CRITICAL FIX: setContentView MUST be called BEFORE findViewById ---
-        setContentView(R.layout.activity_main); // Layout is inflated here
+		// Initialize ActivityResultLauncher for WRITE_SETTINGS permission
+		writeSettingsLauncher = registerForActivityResult(new ActivityResultContracts.StartActivityForResult(),
+				result -> {
+					if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.System.canWrite(this)) {
+						Log.d(TAG, "onActivityResult: Permission granted by user. Applying combined brightness.");
+						applyCombinedBrightness(); // Apply the combined logic if permission granted
+						Toast.makeText(this, "Permission granted. Using full brightness control.", Toast.LENGTH_SHORT)
+								.show();
+					} else {
+						Log.d(TAG, "onActivityResult: Permission denied by user. Falling back to in-app only.");
+						Toast.makeText(this, "Permission denied. Using in-app brightness control only.",
+								Toast.LENGTH_LONG).show();
+						applyInAppWindowBrightness(); // Fallback
+					}
+				});
 
-		// find the display text view - NOW this is the correct place
+		// --- Modern Full-Screen & Edge-to-Edge Display Setup (API 30+) ---
+		WindowCompat.setDecorFitsSystemWindows(getWindow(), false);
+
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+			final WindowInsetsControllerCompat controller = WindowCompat.getInsetsController(getWindow(),
+					getWindow().getDecorView());
+			if (controller != null) {
+				controller.hide(WindowInsetsCompat.Type.systemBars());
+				controller.setSystemBarsBehavior(WindowInsetsControllerCompat.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+				Log.d(TAG, "onCreate: Modern system bars hidden.");
+			}
+		} else {
+			getWindow().getDecorView().setSystemUiVisibility(
+					View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+							| View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
+							| View.SYSTEM_UI_FLAG_FULLSCREEN | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
+			Log.d(TAG, "onCreate: Legacy system bars hidden.");
+		}
+
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.P) {
+			getWindow()
+					.getAttributes().layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_SHORT_EDGES;
+			Log.d(TAG, "onCreate: Display cutout mode set for short edges.");
+		}
+		// --- End Modern Full-Screen Setup ---
+
+		setContentView(R.layout.activity_main); // Layout is inflated here
+
 		txttext = findViewById(R.id.txtoutput);
-        // Optional: Set initial text for clarity if TextView is found
-        if (txttext != null)
-		{
-            txttext.setText("Brightness Info: Loading...");
-        }
-		else
-		{
-            Log.e(TAG, "onCreate: txtoutput TextView not found! Check activity_main.xml for @id/txtoutput");
-        }
-        // --- END CRITICAL FIX ---
+		if (txttext != null) {
+			txttext.setText("Brightness Info: Loading...");
+		} else {
+			Log.e(TAG, "onCreate: txtoutput TextView not found! Check activity_main.xml for @id/txtoutput");
+		}
 
+		// Initialize originalWindowBrightness here to capture initial state
+		// This is important because the window's screenBrightness can be BRIGHTNESS_OVERRIDE_NONE
+		// if the system is managing it, or a specific float if another app set it.
+		originalWindowBrightness = getWindow().getAttributes().screenBrightness;
+		Log.d(TAG, "onCreate: Initial originalWindowBrightness captured as: " + originalWindowBrightness);
 
-        // --- Add FLAG_KEEP_SCREEN_ON here ---
-        // This keeps the screen from turning off/locking while your app is active.
-        // It does NOT control brightness, allowing system auto-brightness to work
-        // or for your app to set it manually.
-        getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        Log.d(TAG, "onCreate: FLAG_KEEP_SCREEN_ON added.");
-        // --- End FLAG_KEEP_SCREEN_ON ---
+		getWindow().addFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+		Log.d(TAG, "onCreate: FLAG_KEEP_SCREEN_ON added.");
 
-        // --- Brightness Control Logic ---
-        checkAndApplyBrightness();
-        // Removed displayCurrentBrightness() here, as it's called inside applySystemBrightness()
-    }
+		// Initial check and apply brightness
+		checkAndApplyBrightness();
+	}
 
-    @Override
-    protected void onResume()
-	{
-        super.onResume();
-        // --- ADDED DEBUG TOAST: Crucial for testing ---
-        Toast.makeText(this, "onResume CALLED", Toast.LENGTH_SHORT).show();
-        Log.d(TAG, "onResume: Activity resumed.");
-        // Re-apply brightness settings when the activity resumes
-        checkAndApplyBrightness();
-    }
+	@Override
+	protected void onResume() {
+		super.onResume();
+		Toast.makeText(this, "onResume CALLED", Toast.LENGTH_SHORT).show();
+		Log.d(TAG, "onResume: Activity resumed.");
+		checkAndApplyBrightness(); // Re-apply brightness settings
+	}
 
-    @Override
-    protected void onPause()
-	{
-        super.onPause();
-        // --- ADDED DEBUG TOAST: Crucial for testing ---
-        Toast.makeText(this, "onPause CALLED", Toast.LENGTH_SHORT).show();
-        Log.d(TAG, "onPause: Activity paused. Restoring brightness.");
-        // Restore brightness when the activity pauses
-        restoreBrightness(); // Calling the unified restore method
-    }
+	@Override
+	protected void onPause() {
+		super.onPause();
+		Toast.makeText(this, "onPause CALLED", Toast.LENGTH_SHORT).show();
+		Log.d(TAG, "onPause: Activity paused. Restoring brightness.");
+		restoreBrightness(); // Restore brightness
+	}
 
-    private void checkAndApplyBrightness()
-    {
-        Log.d(TAG, "checkAndApplyBrightness: Checking permission.");
-        if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M)
-        {
-            if (!Settings.System.canWrite(this))
-            {
-                Log.d(TAG, "checkAndApplyBrightness: WRITE_SETTINGS permission not granted. Requesting...");
-                Intent intent = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS,
-                                           Uri.parse("package:" + getPackageName()));
-                startActivityForResult(intent, PERMISSION_REQUEST_CODE);
-                Toast.makeText(this, "Please grant 'Modify system settings' permission for full control.", Toast.LENGTH_LONG).show();
-                applyInAppWindowBrightness(); // Fallback immediately
-            }
-            else
-            {
-                Log.d(TAG, "checkAndApplyBrightness: WRITE_SETTINGS permission granted.");
-                applySystemBrightness(); // Apply system brightness
-            }
-        }
-        else
-        {
-            Log.d(TAG, "checkAndApplyBrightness: API < 23, permission assumed granted.");
-            applySystemBrightness(); // Apply system brightness for older APIs
-        }
-    }
+	/**
+	* Checks for WRITE_SETTINGS permission and applies appropriate brightness control.
+	*/
+	private void checkAndApplyBrightness() {
+		Log.d(TAG, "checkAndApplyBrightness: Checking WRITE_SETTINGS permission.");
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+			if (!Settings.System.canWrite(this)) {
+				Log.d(TAG, "checkAndApplyBrightness: WRITE_SETTINGS permission not granted. Requesting...");
+				Intent intent = new Intent(Settings.ACTION_MANAGE_WRITE_SETTINGS,
+						Uri.parse("package:" + getPackageName()));
+				writeSettingsLauncher.launch(intent); // Use the modern launcher
+				Toast.makeText(this, "Please grant 'Modify system settings' permission for full control.",
+						Toast.LENGTH_LONG).show();
+				applyInAppWindowBrightness(); // Fallback immediately while waiting for permission result
+			} else {
+				Log.d(TAG, "checkAndApplyBrightness: WRITE_SETTINGS permission granted. Applying combined brightness.");
+				applyCombinedBrightness(); // Permission is granted, apply the full logic
+			}
+		} else {
+			Log.d(TAG, "checkAndApplyBrightness: API < 23, permission not required. Applying combined brightness.");
+			applyCombinedBrightness(); // For older APIs, assume permission or not needed.
+		}
+	}
 
-    @Override
-    protected void onActivityResult(int requestCode, int resultCode, Intent data)
-    {
-        super.onActivityResult(requestCode, resultCode, data);
-        if (requestCode == PERMISSION_REQUEST_CODE)
-        {
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.System.canWrite(this))
-            {
-                Log.d(TAG, "onActivityResult: Permission granted by user.");
-                applySystemBrightness();
-                Toast.makeText(this, "Permission granted. Using full system brightness control.", Toast.LENGTH_SHORT).show();
-            }
-            else
-            {
-                Log.d(TAG, "onActivityResult: Permission denied by user. Falling back to in-app.");
-                Toast.makeText(this, "Permission denied. Using in-app brightness control only.", Toast.LENGTH_LONG).show();
-                applyInAppWindowBrightness(); // Ensure fallback is active
-            }
-        }
-    }
+	/**
+	* Applies system brightness (if possible) and then forces window brightness to 0.01f.
+	* This is the preferred method when WRITE_SETTINGS permission is available.
+	*/
+	private void applyCombinedBrightness() {
+		Log.d(TAG, "applyCombinedBrightness: Attempting to set system brightness to " + SYSTEM_BRIGHTNESS_MIN
+				+ " and window brightness to " + WINDOW_BRIGHTNESS_MIN + ".");
 
-    private void applySystemBrightness()
-	{
-		Log.d(TAG, "applySystemBrightness: Attempting to set system brightness to 0.");
+		// Step 1: Attempt to set system brightness
+		applySystemBrightnessOnly(); // This method sets isSystemBrightnessControlled
+
+		// Step 2: Apply window brightness override if system control was successfully initiated
+		if (isSystemBrightnessControlled) {
+			WindowManager.LayoutParams layoutParams = getWindow().getAttributes();
+			// originalWindowBrightness was already captured in onCreate().
+			// Now, we apply our app's specific override.
+
+			layoutParams.screenBrightness = WINDOW_BRIGHTNESS_MIN; // Force window to darkest (e.g., 0.01f)
+			getWindow().setAttributes(layoutParams);
+			Log.d(TAG, "applyCombinedBrightness: Window brightness explicitly set to " + WINDOW_BRIGHTNESS_MIN + ".");
+			Toast.makeText(this, "System brightness dimmed, window forced to " + WINDOW_BRIGHTNESS_MIN + ".",
+					Toast.LENGTH_SHORT).show();
+			brightnessTrackValue = WINDOW_BRIGHTNESS_MIN; // Update tracker
+		} else {
+			// Fallback if applySystemBrightnessOnly failed for some reason (e.g., unexpected exception)
+			Log.d(TAG,
+					"applyCombinedBrightness: System brightness control failed unexpectedly, falling back to in-app only.");
+			applyInAppWindowBrightness();
+		}
+		displayCurrentBrightness(); // Display info after all settings are applied
+	}
+
+	/**
+	* Only applies changes to the system's SCREEN_BRIGHTNESS.
+	* Sets isSystemBrightnessControlled flag based on success.
+	*/
+	private void applySystemBrightnessOnly() {
+		Log.d(TAG, "applySystemBrightnessOnly: Attempting to set system brightness to " + SYSTEM_BRIGHTNESS_MIN + ".");
 		ContentResolver cResolver = getContentResolver();
-		try
-		{
+		try {
 			originalSystemBrightnessValue = Settings.System.getInt(cResolver, Settings.System.SCREEN_BRIGHTNESS);
 			originalSystemBrightnessMode = Settings.System.getInt(cResolver, Settings.System.SCREEN_BRIGHTNESS_MODE);
+			Log.d(TAG, "applySystemBrightnessOnly: Original system brightness saved: " + originalSystemBrightnessValue
+					+ ", mode: " + originalSystemBrightnessMode);
 
-			// Added more detailed logging for the original mode
-			String originalModeName = (originalSystemBrightnessMode == Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC) ? "AUTO" : "MANUAL";
-			Log.d(TAG, "applySystemBrightness: Original system brightness: " + originalSystemBrightnessValue + ", Mode: " + originalModeName + " (" + originalSystemBrightnessMode + ")");
+			String originalModeName = (originalSystemBrightnessMode == Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC)
+					? "AUTO"
+					: "MANUAL";
+			Log.d(TAG, "applySystemBrightnessOnly: Original system brightness: " + originalSystemBrightnessValue
+					+ ", Mode: " + originalModeName + " (" + originalSystemBrightnessMode + ")");
 
-			// Temporarily set brightness mode to manual if it's automatic
-			if (originalSystemBrightnessMode == Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC)
-			{
+			if (originalSystemBrightnessMode == Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC) {
 				Settings.System.putInt(cResolver, Settings.System.SCREEN_BRIGHTNESS_MODE,
-									   Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL);
-				Log.d(TAG, "applySystemBrightness: Switched system brightness mode to MANUAL for app control.");
-			}
-			else
-			{
-				Log.d(TAG, "applySystemBrightness: Original mode was already MANUAL, no mode change needed.");
+						Settings.System.SCREEN_BRIGHTNESS_MODE_MANUAL);
+				Log.d(TAG, "applySystemBrightnessOnly: Switched system brightness mode to MANUAL for app control.");
+			} else {
+				Log.d(TAG, "applySystemBrightnessOnly: Original mode was already MANUAL, no mode change needed.");
 			}
 
+			Settings.System.putInt(cResolver, Settings.System.SCREEN_BRIGHTNESS, SYSTEM_BRIGHTNESS_MIN);
+			Log.d(TAG, "applySystemBrightnessOnly: System brightness set to " + SYSTEM_BRIGHTNESS_MIN + ".");
 
-			// Set system brightness to 0 (lowest)
-			Settings.System.putInt(cResolver, Settings.System.SCREEN_BRIGHTNESS, 0);
-			Log.d(TAG, "applySystemBrightness: System brightness set to 0.");
-
-			// Set window brightness to follow system (i.e., not override it)
-			WindowManager.LayoutParams layoutParams = getWindow().getAttributes();
-			layoutParams.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE; // Corrected to BRIGHTNESS_OVERRIDE_NONE
-			getWindow().setAttributes(layoutParams);
-			Log.d(TAG, "applySystemBrightness: Window brightness set to follow system (BRIGHTNESS_OVERRIDE_NONE).");
-
-			isSystemBrightnessControlled = true;
-			Toast.makeText(this, "System brightness set to 0 (full control).", Toast.LENGTH_SHORT).show();
-			displayCurrentBrightness(); // Call to display after applying brightness
-
-		}
-		catch (Settings.SettingNotFoundException e)
-		{
-			Log.e(TAG, "applySystemBrightness: Settings.SettingNotFoundException", e);
-			Toast.makeText(this, "Error accessing system brightness settings.", Toast.LENGTH_SHORT).show();
-			applyInAppWindowBrightness(); // Fallback if system settings are not found
-		}
-		catch (SecurityException e)
-		{
-			Log.e(TAG, "applySystemBrightness: SecurityException, WRITE_SETTINGS permission issue?", e);
-			Toast.makeText(this, "Permission issue. Cannot set system brightness.", Toast.LENGTH_SHORT).show();
-			applyInAppWindowBrightness(); // Fallback
+			isSystemBrightnessControlled = true; // Mark success
+		} catch (Settings.SettingNotFoundException e) {
+			Log.e(TAG, "applySystemBrightnessOnly: Settings.SettingNotFoundException: " + e.getMessage(), e);
+			isSystemBrightnessControlled = false; // Mark failure
+		} catch (SecurityException e) {
+			Log.e(TAG, "applySystemBrightnessOnly: SecurityException (WRITE_SETTINGS permission issue?): "
+					+ e.getMessage(), e);
+			isSystemBrightnessControlled = false; // Mark failure
 		}
 	}
 
+	/**
+	* Applies brightness only to the app's window. Used as a fallback.
+	*/
+	private void applyInAppWindowBrightness() {
+		Log.d(TAG, "applyInAppWindowBrightness: Attempting to set in-app window brightness to " + WINDOW_BRIGHTNESS_MIN
+				+ ".");
+		WindowManager.LayoutParams layoutParams = getWindow().getAttributes();
+		// originalWindowBrightness was already captured in onCreate().
 
-    private void applyInAppWindowBrightness()
-    {
-        // Only apply if we haven't already successfully applied system brightness
-        if (!isSystemBrightnessControlled)
-        {
-            Log.d(TAG, "applyInAppWindowBrightness: Attempting to set in-app window brightness to 0.");
-            WindowManager.LayoutParams layoutParams = getWindow().getAttributes();
-            originalWindowBrightness = layoutParams.screenBrightness; // Save current window brightness level
+		layoutParams.screenBrightness = WINDOW_BRIGHTNESS_MIN; // Set window brightness to darkest
+		getWindow().setAttributes(layoutParams); // Apply the new brightness setting
+		Toast.makeText(this, "Using in-app window brightness control.", Toast.LENGTH_SHORT).show();
+		brightnessTrackValue = WINDOW_BRIGHTNESS_MIN; // Update tracker
+	}
 
-            layoutParams.screenBrightness = 0.0f; // Set window brightness to 0 (darkest)
-            getWindow().setAttributes(layoutParams); // Apply the new brightness setting
-            Toast.makeText(this, "Using in-app window brightness control.", Toast.LENGTH_SHORT).show();
-        }
-        else
-        {
-            Log.d(TAG, "applyInAppWindowBrightness: Not applying, system brightness already controlled.");
-        }
-    }
+	@Override
+	protected void onDestroy() {
+		super.onDestroy();
+		Log.d(TAG, "onDestroy: Activity destroyed.");
+		restoreBrightness(); // Restore original brightness
 
-    @Override
-    public void onWindowFocusChanged(boolean hasFocus)
-    {
-        super.onWindowFocusChanged(hasFocus);
-        if (hasFocus)
-        {
-            getWindow().getDecorView().setSystemUiVisibility(
-                View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-                | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
-                | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN
-                | View.SYSTEM_UI_FLAG_HIDE_NAVIGATION
-                | View.SYSTEM_UI_FLAG_FULLSCREEN
-                | View.SYSTEM_UI_FLAG_IMMERSIVE_STICKY);
-        }
-    }
+		// Clear FLAG_KEEP_SCREEN_ON when the activity is destroyed
+		getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
+		Log.d(TAG, "onDestroy: FLAG_KEEP_SCREEN_ON cleared.");
+	}
 
-    @Override
-    protected void onDestroy()
-    {
-        super.onDestroy();
-        Log.d(TAG, "onDestroy: Activity destroyed.");
-        // Restore original brightness based on which method was used
-        // This is a fallback if onPause didn't get called, or if the app is fully killed.
-        restoreBrightness(); // Calling the unified restore method
+	/**
+	* Unified brightness restoration method based on how brightness was controlled.
+	*/
+	private void restoreBrightness() {
+		Log.d(TAG, "restoreBrightness: Restoring brightness based on control type ("
+				+ (isSystemBrightnessControlled ? "SYSTEM" : "IN-APP") + ").");
+		if (isSystemBrightnessControlled) {
+			restoreSystemAndWindowOverrideBrightness();
+		} else {
+			restoreInAppWindowBrightness();
+		}
+		// Reset brightnessTrackValue after restoration
+		brightnessTrackValue = originalWindowBrightness; // Or to 1.0f if you want it always full bright on exit
+		if (brightnessTrackValue == WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE) {
+			brightnessTrackValue = 1.0f; // Assume full bright if it was deferring to system
+		}
+		Log.d(TAG, "restoreBrightness: brightnessTrackValue reset to: " + brightnessTrackValue);
+	}
 
-        // --- Clear FLAG_KEEP_SCREEN_ON here ---
-        // This removes the flag when the activity is destroyed, allowing the screen
-        // to turn off normally afterwards (e.g., via idle timeout or power button).
-        getWindow().clearFlags(WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON);
-        Log.d(TAG, "onDestroy: FLAG_KEEP_SCREEN_ON cleared.");
-        // --- End Clear FLAG_KEEP_SCREEN_ON ---
-    }
-
-    // Unified brightness restoration method
-    private void restoreBrightness()
-	{
-        Log.d(TAG, "restoreBrightness: Restoring brightness based on control type.");
-        if (isSystemBrightnessControlled)
-		{
-            restoreSystemBrightness();
-        }
-		else
-		{
-            restoreInAppWindowBrightness();
-        }
-    }
-
-    private void restoreSystemBrightness()
-	{
+	/**
+	* Restores system brightness and ensures window brightness is also restored to its original state.
+	*/
+	private void restoreSystemAndWindowOverrideBrightness() {
 		ContentResolver cResolver = getContentResolver();
-		try
-		{
-			// Only restore if we successfully saved original values
-			if (originalSystemBrightnessValue != -1 && originalSystemBrightnessMode != -1)
-			{
+		try {
+			// Restore System Brightness
+			if (originalSystemBrightnessValue != -1 && originalSystemBrightnessMode != -1) {
 				Settings.System.putInt(cResolver, Settings.System.SCREEN_BRIGHTNESS, originalSystemBrightnessValue);
-				Log.d(TAG, "restoreSystemBrightness: System brightness restored to: " + originalSystemBrightnessValue);
+				Log.d(TAG, "restoreSystemAndWindowOverrideBrightness: System brightness restored to: "
+						+ originalSystemBrightnessValue);
 
-				// Added more detailed logging for the restored mode
-				String restoredModeName = (originalSystemBrightnessMode == Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC) ? "AUTO" : "MANUAL";
+				String restoredModeName = (originalSystemBrightnessMode == Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC)
+						? "AUTO"
+						: "MANUAL";
 				Settings.System.putInt(cResolver, Settings.System.SCREEN_BRIGHTNESS_MODE, originalSystemBrightnessMode);
-				Log.d(TAG, "restoreSystemBrightness: System brightness mode restored to: " + restoredModeName + " (" + originalSystemBrightnessMode + ")");
+				Log.d(TAG, "restoreSystemAndWindowOverrideBrightness: System brightness mode restored to: "
+						+ restoredModeName + " (" + originalSystemBrightnessMode + ")");
 
 				Toast.makeText(this, "System brightness restored.", Toast.LENGTH_SHORT).show();
+			} else {
+				Log.d(TAG,
+						"restoreSystemAndWindowOverrideBrightness: No original system brightness values to restore. Skipping system restore.");
 			}
-			else
-			{
-				Log.d(TAG, "restoreSystemBrightness: No original system brightness values to restore.");
+
+			// Restore Window Brightness to its original captured state
+			if (originalWindowBrightness != -2.0f) { // Check if original was successfully captured
+				WindowManager.LayoutParams layoutParams = getWindow().getAttributes();
+				layoutParams.screenBrightness = originalWindowBrightness;
+				getWindow().setAttributes(layoutParams);
+				Log.d(TAG,
+						"restoreSystemAndWindowOverrideBrightness: Window brightness restored to its original value: "
+								+ originalWindowBrightness);
+			} else {
+				Log.d(TAG,
+						"restoreSystemAndWindowOverrideBrightness: originalWindowBrightness was not captured, setting to BRIGHTNESS_OVERRIDE_NONE as fallback.");
+				WindowManager.LayoutParams layoutParams = getWindow().getAttributes();
+				layoutParams.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE; // Ensure it defers to system
+				getWindow().setAttributes(layoutParams);
 			}
-		}
-		catch (Exception e) // Catching generic Exception to log any issues during restore
-		{
-			Log.e(TAG, "restoreSystemBrightness: Error restoring system brightness.", e);
-			Toast.makeText(this, "Error restoring system brightness.", Toast.LENGTH_SHORT).show();
+
+		} catch (Exception e) { // Catching generic Exception to log any issues during restore
+			Log.e(TAG, "restoreSystemAndWindowOverrideBrightness: Error restoring brightness.", e);
+			Toast.makeText(this, "Error restoring brightness.", Toast.LENGTH_SHORT).show();
+		} finally {
+			isSystemBrightnessControlled = false; // Reset flag
 		}
 	}
 
+	/**
+	* Restores only the in-app window brightness.
+	*/
+	private void restoreInAppWindowBrightness() {
+		if (originalWindowBrightness != -2.0f) { // Check if original was successfully captured
+			Log.d(TAG,
+					"restoreInAppWindowBrightness: Restoring in-app window brightness to: " + originalWindowBrightness);
+			WindowManager.LayoutParams layoutParams = getWindow().getAttributes();
+			layoutParams.screenBrightness = originalWindowBrightness;
+			getWindow().setAttributes(layoutParams);
+			Toast.makeText(this, "In-app brightness restored.", Toast.LENGTH_SHORT).show();
+		} else {
+			Log.d(TAG,
+					"restoreInAppWindowBrightness: No original in-app window brightness to restore. Setting to BRIGHTNESS_OVERRIDE_NONE as fallback.");
+			// If original wasn't captured, ensure it defers to the system as a safe fallback
+			WindowManager.LayoutParams layoutParams = getWindow().getAttributes();
+			layoutParams.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE;
+			getWindow().setAttributes(layoutParams);
+		}
+		isSystemBrightnessControlled = false; // Reset flag
+	}
 
-    private void restoreInAppWindowBrightness()
-    {
-        // Only restore if we had a valid original brightness saved for the window
-        if (originalWindowBrightness != -2.0f)
-        {
-            Log.d(TAG, "restoreInAppWindowBrightness: Restoring in-app window brightness to: " + originalWindowBrightness);
-            WindowManager.LayoutParams layoutParams = getWindow().getAttributes();
-            layoutParams.screenBrightness = originalWindowBrightness;
-            getWindow().setAttributes(layoutParams);
-            Toast.makeText(this, "In-app brightness restored.", Toast.LENGTH_SHORT).show();
-        }
-        else
-        {
-            Log.d(TAG, "restoreInAppWindowBrightness: No original in-app window brightness to restore.");
-        }
-    }
-
-	private void displayCurrentBrightness()
-	{
+	/**
+	* Displays current brightness information in a Toast and the TextView.
+	*/
+	private void displayCurrentBrightness() {
 		ContentResolver cResolver = getContentResolver();
-		// Removed redundant Toast: Toast.makeText(this, "apply brightnesd", Toast.LENGTH_SHORT).show();
-		try
-		{
-			int currentBrightness = Settings.System.getInt(cResolver, Settings.System.SCREEN_BRIGHTNESS);
+		try {
+			int currentSystemBrightness = Settings.System.getInt(cResolver, Settings.System.SCREEN_BRIGHTNESS);
 			int currentBrightnessMode = Settings.System.getInt(cResolver, Settings.System.SCREEN_BRIGHTNESS_MODE);
 
-			String modeText;
-			if (currentBrightnessMode == Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC)
-			{
-				modeText = "Automatic";
-			}
-			else
-			{
-				modeText = "Manual";
-			}
+			String modeText = (currentBrightnessMode == Settings.System.SCREEN_BRIGHTNESS_MODE_AUTOMATIC) ? "Automatic"
+					: "Manual";
 
-			String message = "Current Brightness: " + currentBrightness + " (out of 255)\nMode: " + modeText;
+			WindowManager.LayoutParams layoutParams = getWindow().getAttributes();
+			float currentWindowBrightness = layoutParams.screenBrightness; // Get actual window brightness attribute
+
+			String message = "System Brightness: " + currentSystemBrightness + " (out of 255)\n" + "System Mode: "
+					+ modeText + "\n" + "Window Brightness: " + String.format("%.2f", currentWindowBrightness)
+					+ " (out of 1.0)\n" + "App Applied Value: " + String.format("%.2f", brightnessTrackValue); // Use tracked value
+
 			Toast.makeText(this, message, Toast.LENGTH_LONG).show();
-			Log.d(TAG, "Current Brightness: " + currentBrightness + ", Mode: " + modeText);
-			// Ensure txttext is not null before setting text
-			if (txttext != null)
-			{
-			    txttext.setText(message);
+			Log.d(TAG, message);
+
+			if (txttext != null) {
+				txttext.setText(message);
+			} else {
+				Log.e(TAG, "displayCurrentBrightness: txttext is null. findViewById might have failed.");
 			}
-			else
-			{
-			    Log.e(TAG, "displayCurrentBrightness: txttext is null. findViewById might have failed.");
-			}
-		}
-		catch (Settings.SettingNotFoundException e)
-		{
-			Log.e(TAG, "displayCurrentBrightness: Settings.SettingNotFoundException", e);
+		} catch (Settings.SettingNotFoundException e) {
+			Log.e(TAG, "displayCurrentBrightness: Settings.SettingNotFoundException: " + e.getMessage(), e);
 			Toast.makeText(this, "Could not read system brightness settings.", Toast.LENGTH_SHORT).show();
-		}
-		catch (SecurityException e)
-		{
-			Log.e(TAG, "displayCurrentBrightness: SecurityException, READ_SETTINGS permission issue?", e);
+		} catch (SecurityException e) {
+			Log.e(TAG,
+					"displayCurrentBrightness: SecurityException (READ_SETTINGS permission issue?): " + e.getMessage(),
+					e);
 			Toast.makeText(this, "Permission to read settings denied.", Toast.LENGTH_SHORT).show();
 		}
 	}
 }
-
