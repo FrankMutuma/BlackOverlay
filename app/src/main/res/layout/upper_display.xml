@@ -20,7 +20,7 @@
             android:layout_width="match_parent"
             android:layout_height="?attr/actionBarSize"
             android:theme="@style/ThemeOverlay.AppCompat.Dark.ActionBar"
-            app:title="Black Screen"
+            app:title="Black Overlay"
             app:titleTextColor="#FFFFFF" />
     </com.google.android.material.appbar.AppBarLayout>
 
