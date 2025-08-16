@@ -30,7 +30,8 @@
             app:layout_constraintStart_toStartOf="parent"
             app:layout_constraintTop_toBottomOf="@id/tab_layout"
             android:text="Debug Info Here"
-            android:textColor="#ffffff" />
+            android:textColor="#ffffff"
+            android:visibility="gone" />
 
         <androidx.viewpager2.widget.ViewPager2
             android:id="@+id/view_pager"
@@ -42,7 +43,7 @@
             app:layout_constraintTop_toBottomOf="@id/txtoutput" />
 
         <com.google.android.material.floatingactionbutton.FloatingActionButton
-            android:id="@+id/fab_stop"
+            android:id="@+id/fab_start"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_margin="16dp"
