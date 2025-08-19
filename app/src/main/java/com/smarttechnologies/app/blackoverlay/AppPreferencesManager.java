@@ -12,6 +12,7 @@ public class AppPreferencesManager {
 	private static final String PREF_NAME = "black_overlay_prefs";
 	private static final String KEY_TOTAL_DENIALS = "total_permission_denials"; // Global counter for all prompts shown & denied/dismissed
 	private static final String KEY_INITIAL_LAUNCH_PROMPT_COUNT = "initial_launch_prompt_count"; // Counter for prompts shown specifically on onCreate
+	private static final String KEY_PREVENT_TOUCH = "preventTouch";
 
 	public static final int MAX_TOTAL_DENIALS = 9; // Max total prompts allowed across all sessions and launches
 	public static final int MAX_INITIAL_LAUNCH_PROMPTS = 3; // Max times to show the prompt on first app open (onCreate)
@@ -54,5 +55,13 @@ public class AppPreferencesManager {
 
 	public void resetInitialLaunchPromptCount() {
 		editor.putInt(KEY_INITIAL_LAUNCH_PROMPT_COUNT, 0).apply();
+	}
+
+	public void setPreventTouch(Boolean preventTouch) {
+		editor.putBoolean(KEY_PREVENT_TOUCH, preventTouch).apply();
+	}
+
+	public boolean getPreventTouch() {
+		return sharedPreferences.getBoolean(KEY_PREVENT_TOUCH, true);
 	}
 }

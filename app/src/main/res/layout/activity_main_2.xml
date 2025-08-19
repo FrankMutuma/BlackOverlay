@@ -23,7 +23,7 @@
         android:id="@+id/txtoutput"
         android:layout_width="wrap_content"
         android:layout_height="wrap_content"
-        android:layout_gravity="center"
+        android:layout_gravity="center_vertical|center|center_horizontal"
         android:background="@android:color/transparent"
         android:text="@string/text"
         android:color="#ffffff" />
@@ -58,7 +58,7 @@
             app:layout_constraintVertical_bias="0.3"
             app:layout_constraintVertical_chainStyle="packed"
             android:text="18:44"
-            android:textColor="#FFFFFF"
+            android:textColor="#ffffffff"
             android:textSize="48sp"
             android:textStyle="bold" />
 
@@ -70,7 +70,7 @@
             app:layout_constraintStart_toStartOf="@id/preview_area"
             app:layout_constraintTop_toBottomOf="@id/preview_time"
             android:text="Fri, Jul 18"
-            android:textColor="#FFFFFF"
+            android:textColor="#ffffffff"
             android:textSize="18sp" />
 
         <TextView
@@ -82,40 +82,8 @@
             app:layout_constraintStart_toStartOf="@id/preview_area"
             app:layout_constraintTop_toBottomOf="@id/preview_date"
             android:text="UNLOCK"
-            android:textColor="#F48FB1"
+            android:textColor="#fff48fb1"
             android:textSize="16sp" />
-
-        <com.google.android.material.tabs.TabLayout
-            android:id="@+id/tab_layout"
-            android:layout_width="match_parent"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/preview_area"
-            android:background="@android:color/transparent"
-            app:tabIndicatorColor="@color/pink_accent_color"
-            app:tabSelectedTextColor="@color/pink_accent_color"
-            app:tabTextColor="#80FFFFFF" />
-
-        <androidx.viewpager2.widget.ViewPager2
-            android:id="@+id/view_pager"
-            android:layout_width="0dp"
-            android:layout_height="0dp"
-            app:layout_constraintBottom_toBottomOf="parent"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/tab_layout" />
     </androidx.constraintlayout.widget.ConstraintLayout>
-
-    <com.google.android.material.floatingactionbutton.FloatingActionButton
-        android:id="@+id/fab_stop"
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:layout_gravity="bottom|end"
-        android:layout_margin="16dp"
-        android:src="@drawable/ic_stop_white_24dp"
-        app:backgroundTint="@color/pink_accent_color"
-        app:tint="@android:color/white" />
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
