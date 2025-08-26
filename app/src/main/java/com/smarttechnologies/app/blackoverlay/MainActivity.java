@@ -2,6 +2,7 @@ package com.smarttechnologies.app.blackoverlay;
 
 import android.os.Bundle;
 import android.view.View;
+import android.widget.TextView;
 import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.viewpager2.widget.ViewPager2;
@@ -14,18 +15,36 @@ import android.provider.Settings;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
 
-public class MainActivity extends AppCompatActivity {
+public class MainActivity extends AppCompatActivity implements PermissionManager.PermissionCallback {
+	private ClockUtils clockUtils;
+	private TextView timeTextView;
+	private TextView dateDayTextView;
+	private PermissionManager permissionManager;
+	private AppPreferencesManager prefsManager;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
 
+		clockUtils = new ClockUtils();
+		prefsManager = AppPreferencesManager.getInstance(this);
+		// Initialize the PermissionManager with this activity and callback
+		permissionManager = new PermissionManager(this, this);
+
+		setupUI();
+
+		// Check and request permissions as the first order of business
+		permissionManager.checkAndRequestPermissions();
+	}
+
+	private void setupUI() {
 		// Find the ViewPager2 and TabLayout from the layout file
 		ViewPager2 viewPager = findViewById(R.id.view_pager);
 		TabLayout tabLayout = findViewById(R.id.tab_layout);
 		FloatingActionButton mainStartButton = findViewById(R.id.fab_start);
-
+		timeTextView = findViewById(R.id.activity_main_time);
+		dateDayTextView = findViewById(R.id.activity_main_date);
 		// Create an instance of our custom ViewPagerAdapter
 		ViewPagerAdapter adapter = new ViewPagerAdapter(this);
 
@@ -41,43 +60,47 @@ public class MainActivity extends AppCompatActivity {
 			}
 		}).attach();
 
-		mainStartButton.setOnClickListener(new View.OnClickListener() {
-			@Override
-			public void onClick(View arg0) {
-				requestOverlayPermission();
+		// Set the FAB click listener
+		mainStartButton.setOnClickListener(v -> {
+			// The FAB now simply starts the service.
+			// Check if we have at least overlay permission before starting service
+			if (permissionManager.hasOverlayPermission()) {
+				startFloatingService();
+			} else {
+				Toast.makeText(this, "Please grant overlay permission first", Toast.LENGTH_SHORT).show();
+				permissionManager.checkAndRequestPermissions();
 			}
-
 		});
-
 	}
 
-	// Register a launcher for the permission request
-	private ActivityResultLauncher<Intent> permissionLauncher = registerForActivityResult(
-			new ActivityResultContracts.StartActivityForResult(), result -> {
-				if (Settings.canDrawOverlays(this)) {
-					startFloatingService();
-				} else {
-					Toast.makeText(this, "Overlay permission is required to display the floating button.",
-							Toast.LENGTH_LONG).show();
-				}
-			});
-
-	private void requestOverlayPermission() {
-		if (!Settings.canDrawOverlays(this)) {
-			Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
-					Uri.parse("package:" + getPackageName()));
-			permissionLauncher.launch(intent);
-		} else {
-			startFloatingService();
-		}
+	//--- PermissionCallback Methods ---//
+	@Override
+	public void onAllPermissionsGranted() {
+		// Both permissions are granted!
+		Toast.makeText(this, "All permissions granted. Full functionality enabled.", Toast.LENGTH_SHORT).show();
+		// You can automatically start the service or enable UI elements
+		startFloatingService();
 	}
+
+	@Override
+	public void onEssentialPermissionGranted() {
+		// Only overlay permission is granted, but that's enough for basic functionality
+		Toast.makeText(this, "Essential permissions granted. Starting with basic features.", Toast.LENGTH_SHORT).show();
+		startFloatingService();
+	}
+
+	@Override
+	public void onPermissionsDenied() {
+		// User denied essential overlay permission
+		Toast.makeText(this, "Cannot function without overlay permission.", Toast.LENGTH_LONG).show();
+		// You might want to finish the activity or show a message
+	}
+	//--- End PermissionCallback ---//
 
 	private void startFloatingService() {
 		Intent intent = new Intent(this, FloatingButtonService.class);
-		Toast.makeText(this,"float started",Toast.LENGTH_LONG).show();
-		startForegroundService(intent);
-		// You may also want to finish the MainActivity to go to the background
-		// finish();
+		startService(intent);
+		Toast.makeText(this, "Service starting...", Toast.LENGTH_SHORT).show();
+		// finish(); // Optional: close the activity
 	}
-
 }

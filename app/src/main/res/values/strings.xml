@@ -1,4 +1,8 @@
 <resources>
+
     <string name="app_name">Black Overlay </string>
-	<string name="text">this is the main blackscreen activity to be!</string>
+    <string name="text">this is the main blackscreen activity to be!</string>
+    <string name="unlock">UNLOCK</string>
+    <string name="unlock_description">tap here to unlock the screen</string>
+
 </resources>

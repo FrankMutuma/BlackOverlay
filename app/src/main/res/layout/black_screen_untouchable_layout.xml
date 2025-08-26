@@ -1,46 +1,47 @@
-<?xml version="1.0" encoding="utf-8"?>
 <androidx.constraintlayout.widget.ConstraintLayout xmlns:android="http://schemas.android.com/apk/res/android"
-xmlns:app="http://schemas.android.com/apk/res-auto"
-android:layout_width="match_parent"
-android:layout_height="match_parent"
-android:background="@android:color/black">
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="#FF000000"
+    android:fitsSystemWindows="false" >
 
-<TextView
-android:id="@+id/overlay_time"
-android:layout_width="wrap_content"
-android:layout_height="wrap_content"
-android:text="18:44"
-android:textColor="#ffffff"
-android:textSize="48sp"
-android:textStyle="bold"
-app:layout_constraintBottom_toTopOf="@+id/overlay_date"
-app:layout_constraintEnd_toEndOf="parent"
-app:layout_constraintStart_toStartOf="parent"
-app:layout_constraintTop_toTopOf="parent"
-app:layout_constraintVertical_chainStyle="packed" />
+    <TextView
+        android:id="@+id/overlay_time"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        app:layout_constraintBottom_toTopOf="@+id/overlay_date"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toTopOf="parent"
+        app:layout_constraintVertical_chainStyle="packed"
+        android:text=""
+        android:textColor="#ffffffff"
+        android:textSize="48sp"
+        android:textStyle="bold" />
 
-<TextView
-android:id="@+id/overlay_date_and_day"
-android:layout_width="wrap_content"
-android:layout_height="wrap_content"
-android:layout_marginTop="8dp"
-android:text="Mon, Aug 18"
-android:textColor="#ffffff"
-android:textSize="18sp"
-app:layout_constraintEnd_toEndOf="parent"
-app:layout_constraintStart_toStartOf="parent"
-app:layout_constraintTop_toBottomOf="@+id/overlay_time" />
+    <TextView
+        android:id="@+id/overlay_date_and_day"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginTop="8dp"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        app:layout_constraintTop_toBottomOf="@+id/overlay_time"
+        android:text=""
+        android:textColor="#ffffffff"
+        android:textSize="18sp" />
 
-<TextView
-android:id="@+id/overlay_unlock"
-android:layout_width="wrap_content"
-android:layout_height="wrap_content"
-android:text="UNLOCK"
-android:textColor="#fff48fb1"
-android:textSize="16sp"
-android:layout_marginBottom="48dp"
-app:layout_constraintBottom_toBottomOf="parent"
-app:layout_constraintEnd_toEndOf="parent"
-app:layout_constraintStart_toStartOf="parent" />
+    <TextView
+        android:id="@+id/overlay_unlock"
+        android:layout_width="wrap_content"
+        android:layout_height="wrap_content"
+        android:layout_marginBottom="48dp"
+        app:layout_constraintBottom_toBottomOf="parent"
+        app:layout_constraintEnd_toEndOf="parent"
+        app:layout_constraintStart_toStartOf="parent"
+        android:contentDescription="@string/unlock_description"
+        android:text="@string/unlock"
+        android:textColor="#fff48fb1"
+        android:textSize="16sp" />
 
 </androidx.constraintlayout.widget.ConstraintLayout>

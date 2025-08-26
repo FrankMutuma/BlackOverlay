@@ -1,5 +1,6 @@
 package com.smarttechnologies.app.blackoverlay;
 
+import android.content.Context;
 import android.os.Build;
 import android.os.Handler;
 import android.app.Notification;
@@ -9,16 +10,21 @@ import android.app.Service;
 import android.content.Intent;
 import android.graphics.PixelFormat;
 import android.os.Looper;
+import android.os.VibrationEffect;
+import android.os.Vibrator;
+import android.os.VibratorManager;
 import android.view.Gravity;
 import android.view.MotionEvent;
 import android.os.IBinder;
 import android.view.LayoutInflater;
+import android.view.WindowInsets;
+import android.view.WindowInsetsController;
 import android.view.WindowManager;
 import android.widget.TextView;
 import android.widget.Toast;
 import android.view.View;
-import android.view.ViewGroup;
 import android.widget.ImageView;
+import androidx.core.view.WindowCompat;
 import java.util.Locale;
 import java.util.Date;
 import java.text.SimpleDateFormat;
@@ -27,14 +33,13 @@ public class FloatingButtonService extends Service {
 
 	private WindowManager windowManager;
 	private AppPreferencesManager appSettingsManager;
+	private ClockUtils clockUtils;
+	private BrightnessManager brightnessManager;
 	private View floatingView;
 	private View blackScreenOverlay;
 	private TextView timeTextView;
 	private TextView dateDayTextView;
-	private Handler handler = new Handler(Looper.getMainLooper());
-	private Runnable updateTimeRunnable;
 	private static final String CHANNEL_ID = "FloatingButtonServiceChannel";
-	private long startClickTime;
 	private static final int MAX_CLICK_DURATION = 200; // Maximum duration for a click in milliseconds
 
 	public FloatingButtonService() {
@@ -48,7 +53,6 @@ public class FloatingButtonService extends Service {
 	@Override
 	public void onCreate() {
 		super.onCreate();
-		appSettingsManager = AppPreferencesManager.getInstance(this);
 
 		// Create the notification channel
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
@@ -60,11 +64,16 @@ public class FloatingButtonService extends Service {
 
 		// Create the notification
 		Notification notification = new Notification.Builder(this, CHANNEL_ID).setContentTitle("Floating Button")
-				.setContentText("Tap to activate black screen").setSmallIcon(R.drawable.ic_play_arrow_white_24dp) // Use your icon
+				.setContentText("Tap to activate black screen").setSmallIcon(R.drawable.ic_play_arrow_white_24dp)
 				.build();
 
 		// Start the service as a foreground service
 		startForeground(1, notification);
+
+		appSettingsManager = AppPreferencesManager.getInstance(this);
+
+		clockUtils = new ClockUtils();
+		brightnessManager = new BrightnessManager(this);
 
 		// Inflate the floating button layout
 		floatingView = LayoutInflater.from(this).inflate(R.layout.floating_button_layout, null);
@@ -84,7 +93,6 @@ public class FloatingButtonService extends Service {
 		windowManager.addView(floatingView, params);
 
 		// Find the icon view and set listeners
-		ImageView floatingButtonIcon = floatingView.findViewById(R.id.floating_button_icon);
 		Toast.makeText(FloatingButtonService.this, "floating button showing", Toast.LENGTH_LONG).show();
 
 		// Add a combined touch and click listener to the view
@@ -93,8 +101,8 @@ public class FloatingButtonService extends Service {
 			private int initialY;
 			private float initialTouchX;
 			private float initialTouchY;
-			private long startClickTime; // New variable to track tap duration
-			private final static int CLICK_ACTION_THRESHOLD = 200; // Maximum duration for a click
+			private long startClickTime;
+			private final static int CLICK_ACTION_THRESHOLD = 200;
 
 			@Override
 			public boolean onTouch(View v, MotionEvent event) {
@@ -108,32 +116,25 @@ public class FloatingButtonService extends Service {
 					return true;
 
 				case MotionEvent.ACTION_MOVE:
-					// Calculate the new position
 					params.x = initialX + (int) (event.getRawX() - initialTouchX);
 					params.y = initialY + (int) (event.getRawY() - initialTouchY);
-					// Update the view's layout
 					windowManager.updateViewLayout(floatingView, params);
 					return true;
 
 				case MotionEvent.ACTION_UP:
 					long clickDuration = System.currentTimeMillis() - startClickTime;
-					// Check if it was a quick tap, not a drag
 					if (clickDuration < CLICK_ACTION_THRESHOLD) {
-						// It was a tap, so we'll treat it as a click
+						//This is a click event
 						if (blackScreenOverlay == null) {
-
-							// Check the user's setting to decide which overlay to show
 							if (appSettingsManager.getPreventTouch()) {
 								showUntouchableBlackScreen();
 							} else {
 								showTouchableBlackScreen();
 							}
-
 						} else {
 							hideBlackScreen();
 						}
 					}
-					// We've handled both drag and click, so we return true
 					return true;
 				}
 				return false;
@@ -141,93 +142,143 @@ public class FloatingButtonService extends Service {
 		});
 	}
 
+	private void vibrate() {
+
+		//... inside your Service or other Context
+		Vibrator vibrator;
+
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.S) {
+			// New method for Android 12 (API 31) and above
+			VibratorManager vibratorManager = (VibratorManager) getSystemService(Context.VIBRATOR_MANAGER_SERVICE);
+			vibrator = vibratorManager.getDefaultVibrator();
+		} else {
+			// Deprecated method for older versions
+			vibrator = (Vibrator) getSystemService(Context.VIBRATOR_SERVICE);
+		}
+
+		if (vibrator != null) {
+			if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
+				vibrator.vibrate(VibrationEffect.createOneShot(100, VibrationEffect.DEFAULT_AMPLITUDE));
+			} else {
+				vibrator.vibrate(100);
+			}
+		}
+
+	}
+
 	private void showUntouchableBlackScreen() {
-		// Inflate the untouchable layout
+		floatingView.setVisibility(View.GONE);
 		blackScreenOverlay = LayoutInflater.from(this).inflate(R.layout.black_screen_untouchable_layout, null);
 		timeTextView = blackScreenOverlay.findViewById(R.id.overlay_time);
 		dateDayTextView = blackScreenOverlay.findViewById(R.id.overlay_date_and_day);
 
-		// Set the layout parameters for a full-screen, non-touchable overlay
 		WindowManager.LayoutParams params = new WindowManager.LayoutParams(WindowManager.LayoutParams.MATCH_PARENT,
 				WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-				WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE
-						| WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-						| WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-				PixelFormat.TRANSLUCENT);
+				WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+						| WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE
 
-		// Add the view to the window manager
+				/* WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS*/, PixelFormat.TRANSLUCENT);
+
+		// Set the display cutout mode
+		params.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
+		// Set to cover entire screen including system bars
+		params.gravity = Gravity.TOP | Gravity.START;
+		params.x = 0;
+		params.y = 0;
+
+		brightnessManager.setOverlayParams(params);
+		if (brightnessManager.canWriteSystemSettings()) {
+			brightnessManager.applyCombinedBrightness();
+		} else {
+			brightnessManager.applyInAppWindowBrightness();
+		}
+
+		// Also set the view itself to be fullscreen
+		blackScreenOverlay.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+				| View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
+
+		blackScreenOverlay.setOnTouchListener(new View.OnTouchListener() {
+			private static final int TAP_COUNT_TO_UNLOCK = 3;
+			private static final long TAP_TIMEOUT_MS = 300;
+			private long lastTapTime = 0;
+			private int tapCount = 0;
+
+			@Override
+			public boolean onTouch(View v, MotionEvent event) {
+				if (event.getAction() == MotionEvent.ACTION_DOWN) {
+					long currentTime = System.currentTimeMillis();
+					if (currentTime - lastTapTime < TAP_TIMEOUT_MS) {
+						tapCount++;
+					} else {
+						tapCount = 1;
+					}
+					lastTapTime = currentTime;
+
+					if (tapCount == TAP_COUNT_TO_UNLOCK) {
+						vibrate();
+						hideBlackScreen();
+						tapCount = 0;
+						return true;
+					}
+				}
+				return true;
+			}
+		});
+
 		windowManager.addView(blackScreenOverlay, params);
-		//start updating time
-		startUpdatingTime();
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+			blackScreenOverlay.getWindowInsetsController()
+					.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+
+			// Hide system bars
+			blackScreenOverlay.getWindowInsetsController().hide(WindowInsets.Type.systemBars());
+		}
+
+		clockUtils.startUpdatingTime(timeTextView, dateDayTextView);
 	}
 
 	private void showTouchableBlackScreen() {
-		// Inflate the simple black screen layout
+		floatingView.setVisibility(View.GONE);
 		blackScreenOverlay = LayoutInflater.from(this).inflate(R.layout.black_screen_touchable_layout, null);
 
-		// Set the layout parameters for a full-screen, touchable overlay
 		WindowManager.LayoutParams params = new WindowManager.LayoutParams(WindowManager.LayoutParams.MATCH_PARENT,
 				WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-				WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
-						| WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON,
+				WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+						| WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION
+						| WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS
+						| WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR
+						| WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
 				PixelFormat.TRANSLUCENT);
 
-		// Add the view to the window manager
 		windowManager.addView(blackScreenOverlay, params);
 	}
 
 	private void hideBlackScreen() {
 		if (blackScreenOverlay != null) {
+			brightnessManager.restoreBrightness();
 			windowManager.removeView(blackScreenOverlay);
 			blackScreenOverlay = null;
+			floatingView.setVisibility(View.VISIBLE);
 		}
 	}
 
 	@Override
 	public int onStartCommand(Intent intent, int flags, int startId) {
-		// You can use this method to handle commands if needed
-		return START_STICKY; // Makes the service restart if it's killed by the system
+		return START_STICKY;
 	}
 
 	@Override
 	public void onDestroy() {
 		super.onDestroy();
+		brightnessManager.restoreBrightness();
 		if (floatingView != null) {
 			windowManager.removeView(floatingView);
-			blackScreenOverlay = null;
-			//stop updating time
-			stopUpdatingTime();
+		}
+		if (blackScreenOverlay != null) {
+			windowManager.removeView(blackScreenOverlay);
+		}
+		if (clockUtils != null) {
+			clockUtils.stopUpdatingTime();
 		}
 	}
-
-	// New methods to start and stop the clock updates
-	private void startUpdatingTime() {
-		updateTimeRunnable = new Runnable() {
-			@Override
-			public void run() {
-				// Get the current time and format it
-				SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm", Locale.getDefault());
-				String currentTime = timeFormat.format(new Date());
-
-				// Get the current date and day and format it
-				SimpleDateFormat dateFormat = new SimpleDateFormat("EEE, MMM dd", Locale.getDefault());
-				String currentDate = dateFormat.format(new Date());
-
-				// Update the TextViews
-				timeTextView.setText(currentTime);
-				dateDayTextView.setText(currentDate);
-
-				// Schedule the next update in one second
-				handler.postDelayed(this, 1000);
-			}
-		};
-		handler.post(updateTimeRunnable);
-	}
-
-	private void stopUpdatingTime() {
-		if (handler != null && updateTimeRunnable != null) {
-			handler.removeCallbacks(updateTimeRunnable);
-		}
-	}
-
 }

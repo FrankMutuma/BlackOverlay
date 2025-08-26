@@ -43,27 +43,27 @@
             android:background="@drawable/rounded_rect_border_white" />
 
         <TextView
-            android:id="@+id/textViewTime"
+            android:id="@+id/activity_main_time"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             app:layout_constraintEnd_toEndOf="@id/preview_area"
             app:layout_constraintStart_toStartOf="@id/preview_area"
             app:layout_constraintTop_toTopOf="@id/preview_area"
             app:layout_constraintVertical_bias="0.3"
-            android:text="18:13"
+            android:text=""
             android:textColor="#FFFFFF"
             android:textSize="48sp"
             android:textStyle="bold" />
 
         <TextView
-            android:id="@+id/textViewDate"
+            android:id="@+id/activity_main_date"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             app:layout_constraintEnd_toEndOf="@id/preview_area"
             app:layout_constraintStart_toStartOf="@id/preview_area"
-            app:layout_constraintTop_toBottomOf="@id/textViewTime"
-            android:text="Wed, Aug 13"
+            app:layout_constraintTop_toBottomOf="@id/activity_main_time"
+            android:text=""
             android:textColor="#FFFFFF"
             android:textSize="18sp" />
 
@@ -75,7 +75,7 @@
             app:layout_constraintBottom_toBottomOf="@id/preview_area"
             app:layout_constraintEnd_toEndOf="@id/preview_area"
             app:layout_constraintStart_toStartOf="@id/preview_area"
-            android:text="UNLOCK"
+            android:text="@string/unlock"
             android:textColor="#FFFFFF"
             android:textSize="16sp" />
     </androidx.constraintlayout.widget.ConstraintLayout>
