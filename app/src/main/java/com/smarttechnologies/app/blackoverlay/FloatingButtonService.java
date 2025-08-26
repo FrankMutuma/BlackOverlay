@@ -73,7 +73,7 @@ public class FloatingButtonService extends Service {
 		appSettingsManager = AppPreferencesManager.getInstance(this);
 
 		clockUtils = new ClockUtils();
-		brightnessManager=new BrightnessManager(this,getWindow());
+		brightnessManager = new BrightnessManager(this);
 
 		// Inflate the floating button layout
 		floatingView = LayoutInflater.from(this).inflate(R.layout.floating_button_layout, null);
@@ -186,6 +186,13 @@ public class FloatingButtonService extends Service {
 		params.x = 0;
 		params.y = 0;
 
+		brightnessManager.setOverlayParams(params);
+		if (brightnessManager.canWriteSystemSettings()) {
+			brightnessManager.applyCombinedBrightness();
+		} else {
+			brightnessManager.applyInAppWindowBrightness();
+		}
+
 		// Also set the view itself to be fullscreen
 		blackScreenOverlay.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE
 				| View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
@@ -248,6 +255,7 @@ public class FloatingButtonService extends Service {
 
 	private void hideBlackScreen() {
 		if (blackScreenOverlay != null) {
+			brightnessManager.restoreBrightness();
 			windowManager.removeView(blackScreenOverlay);
 			blackScreenOverlay = null;
 			floatingView.setVisibility(View.VISIBLE);
@@ -262,6 +270,7 @@ public class FloatingButtonService extends Service {
 	@Override
 	public void onDestroy() {
 		super.onDestroy();
+		brightnessManager.restoreBrightness();
 		if (floatingView != null) {
 			windowManager.removeView(floatingView);
 		}

@@ -4,7 +4,6 @@ import android.content.ContentResolver;
 import android.content.Context;
 import android.provider.Settings;
 import android.util.Log;
-import android.view.Window;
 import android.view.WindowManager;
 
 public class BrightnessManager {
@@ -13,28 +12,25 @@ public class BrightnessManager {
 	private static final float WINDOW_BRIGHTNESS_ABSOLUTE_MIN = 0.00f;
 
 	private Context context;
-	private Window window;
+	private WindowManager.LayoutParams overlayParams;
 
 	private int originalSystemBrightnessValue = -1;
 	private int originalSystemBrightnessMode = -1;
-	private float originalWindowBrightness = -2.0f;
 	public boolean isSystemBrightnessControlled = false;
 
-	public BrightnessManager(Context context, Window window) {
+	public BrightnessManager(Context context) {
 		this.context = context.getApplicationContext();
-		this.window = window;
-		// Capture original window brightness on creation
-		originalWindowBrightness = window.getAttributes().screenBrightness;
+	}
+
+	// Call this method before applying brightness to set the target overlay params
+	public void setOverlayParams(WindowManager.LayoutParams params) {
+		this.overlayParams = params;
 	}
 
 	public void applyCombinedBrightness() {
 		Log.d(TAG, "Applying combined brightness control.");
 		applySystemBrightnessOnly();
-		if (isSystemBrightnessControlled) {
-			setWindowBrightness(WINDOW_BRIGHTNESS_ABSOLUTE_MIN);
-		} else {
-			applyInAppWindowBrightness();
-		}
+		applyInAppWindowBrightness();
 	}
 
 	public void applySystemBrightnessOnly() {
@@ -60,7 +56,12 @@ public class BrightnessManager {
 	}
 
 	public void applyInAppWindowBrightness() {
-		setWindowBrightness(WINDOW_BRIGHTNESS_ABSOLUTE_MIN);
+		if (overlayParams != null) {
+			overlayParams.screenBrightness = WINDOW_BRIGHTNESS_ABSOLUTE_MIN;
+			Log.d(TAG, "Window brightness set to: " + WINDOW_BRIGHTNESS_ABSOLUTE_MIN);
+		} else {
+			Log.e(TAG, "Cannot set window brightness: overlayParams is null");
+		}
 	}
 
 	public void restoreBrightness() {
@@ -82,21 +83,16 @@ public class BrightnessManager {
 		}
 	}
 
-	private void setWindowBrightness(float brightnessValue) {
-		WindowManager.LayoutParams layoutParams = window.getAttributes();
-		layoutParams.screenBrightness = brightnessValue;
-		window.setAttributes(layoutParams);
-	}
-
 	private void restoreInAppWindowBrightness() {
-		setWindowBrightness(originalWindowBrightness);
+		if (overlayParams != null) {
+			overlayParams.screenBrightness = WindowManager.LayoutParams.BRIGHTNESS_OVERRIDE_NONE;
+		}
 	}
 
 	public boolean canWriteSystemSettings() {
-		// Check for WRITE_SETTINGS permission (API 23+)
 		if (android.os.Build.VERSION.SDK_INT >= android.os.Build.VERSION_CODES.M) {
 			return Settings.System.canWrite(context);
 		}
-		return true; // Permission not required on older APIs
+		return true;
 	}
 }
