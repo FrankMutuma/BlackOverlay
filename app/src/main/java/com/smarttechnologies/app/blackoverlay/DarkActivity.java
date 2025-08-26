@@ -395,7 +395,7 @@ public class DarkActivity extends AppCompatActivity {
 				} else {
 					// User clicked 'Grant Access'. The next brightness change will be handled by onActivityResult
 					// or subsequent onResume after they return from settings.
-					// isPermissionPromptPha
+					// isPermissionPrompt
 
 					Log.d(TAG,
 

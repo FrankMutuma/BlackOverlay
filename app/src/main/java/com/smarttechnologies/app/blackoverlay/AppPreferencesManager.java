@@ -13,6 +13,7 @@ public class AppPreferencesManager {
 	private static final String KEY_TOTAL_DENIALS = "total_permission_denials"; // Global counter for all prompts shown & denied/dismissed
 	private static final String KEY_INITIAL_LAUNCH_PROMPT_COUNT = "initial_launch_prompt_count"; // Counter for prompts shown specifically on onCreate
 	private static final String KEY_PREVENT_TOUCH = "preventTouch";
+	private static final String KEY_MEDIA_CONTROL_ENABLED = "mediaEnabled";
 
 	public static final int MAX_TOTAL_DENIALS = 9; // Max total prompts allowed across all sessions and launches
 	public static final int MAX_INITIAL_LAUNCH_PROMPTS = 3; // Max times to show the prompt on first app open (onCreate)
@@ -64,4 +65,14 @@ public class AppPreferencesManager {
 	public boolean getPreventTouch() {
 		return sharedPreferences.getBoolean(KEY_PREVENT_TOUCH, true);
 	}
+
+	//media controls trial implenentation
+	public void setMediaControlsEnabled(boolean mediaEnabled) {
+		editor.putBoolean(KEY_MEDIA_CONTROL_ENABLED, mediaEnabled).apply();
+	}
+
+	public boolean getMediaControlsEnabled() {
+		return sharedPreferences.getBoolean(KEY_MEDIA_CONTROL_ENABLED, false);
+	}
+
 }

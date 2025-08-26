@@ -77,10 +77,18 @@ public class LookFeelFragment extends Fragment {
 		});
 
 		// Set up listeners for the Switches
+
+		// 1. LOAD the saved state when the fragment starts
+		boolean savedMediaControlsState = AppPreferencesManager.getInstance(requireContext()).getMediaControlsEnabled();
+		switchMediaControls.setChecked(savedMediaControlsState);
+
+		// 2. SAVE the state when the user changes it
 		switchMediaControls.setOnCheckedChangeListener((buttonView, isChecked) -> {
+			// Save the state
+			AppPreferencesManager.getInstance(requireContext()).setMediaControlsEnabled(isChecked);
+			// You can keep the toast for feedback
 			String message = isChecked ? "Media controls ON" : "Media controls OFF";
 			Toast.makeText(getContext(), message, Toast.LENGTH_SHORT).show();
-			// TODO: Add logic to save the state
 		});
 
 		switchNotifications.setOnCheckedChangeListener((buttonView, isChecked) -> {

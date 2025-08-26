@@ -1,12 +1,14 @@
+<!-- floating_button_layout.xml -->
 <FrameLayout xmlns:android="http://schemas.android.com/apk/res/android"
-    android:layout_width="wrap_content"
-    android:layout_height="wrap_content"
-    android:orientation="vertical" >
+    android:layout_width="80dp"
+    android:layout_height="80dp"
+    android:orientation="vertical">
 
     <ImageView
         android:id="@+id/floating_button_icon"
         android:layout_width="60dp"
         android:layout_height="60dp"
+        android:layout_gravity="center"
         android:background="@drawable/floating_button_background"
         android:contentDescription="Start Black Screen"
         android:padding="12dp"
