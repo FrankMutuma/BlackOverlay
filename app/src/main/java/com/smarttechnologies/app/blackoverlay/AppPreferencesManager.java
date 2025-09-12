@@ -17,6 +17,11 @@ public class AppPreferencesManager {
 
 	public static final int MAX_TOTAL_DENIALS = 9; // Max total prompts allowed across all sessions and launches
 	public static final int MAX_INITIAL_LAUNCH_PROMPTS = 3; // Max times to show the prompt on first app open (onCreate)
+	//floating lock size
+	private static final String KEY_FLOATING_LOCK_SIZE = "floating_lock_size";
+	private static final int DEFAULT_FLOATING_LOCK_SIZE = 60; // Default size in dp
+	private static final int MIN_FLOATING_LOCK_SIZE = 10; // Minimum size in dp
+	private static final int MAX_FLOATING_LOCK_SIZE = 100; // Maximum size in dp
 
 	private AppPreferencesManager(Context context) {
 		sharedPreferences = context.getApplicationContext().getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);
@@ -28,6 +33,14 @@ public class AppPreferencesManager {
 			instance = new AppPreferencesManager(context);
 		}
 		return instance;
+	}
+
+	public static int getMinFloatingLockSize() {
+		return MIN_FLOATING_LOCK_SIZE;
+	}
+
+	public static int getMaxFloatingLockSize() {
+		return MAX_FLOATING_LOCK_SIZE;
 	}
 
 	// --- Global Total Denials ---
@@ -56,6 +69,20 @@ public class AppPreferencesManager {
 
 	public void resetInitialLaunchPromptCount() {
 		editor.putInt(KEY_INITIAL_LAUNCH_PROMPT_COUNT, 0).apply();
+	}
+
+	//look and feel
+	//floating lock size
+	public void setFloatingLockSize(int size) {
+		// Enforce minimum and maximum size
+		size = Math.max(MIN_FLOATING_LOCK_SIZE, Math.min(MAX_FLOATING_LOCK_SIZE, size));
+		editor.putInt(KEY_FLOATING_LOCK_SIZE, size).apply();
+	}
+
+	public int getFloatingLockSize() {
+		int size = sharedPreferences.getInt(KEY_FLOATING_LOCK_SIZE, DEFAULT_FLOATING_LOCK_SIZE);
+		// Ensure the retrieved size is within bounds
+		return Math.max(MIN_FLOATING_LOCK_SIZE, Math.min(MAX_FLOATING_LOCK_SIZE, size));
 	}
 
 	public void setPreventTouch(Boolean preventTouch) {

@@ -10,6 +10,18 @@
         android:layout_height="match_parent"
         app:layout_behavior="@string/appbar_scrolling_view_behavior" >
 
+        <TextView
+            android:id="@+id/txtoutput"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_margin="10dp"
+            app:layout_constraintEnd_toEndOf="parent"
+            app:layout_constraintStart_toStartOf="parent"
+            app:layout_constraintTop_toTopOf="parent"
+            android:text="Debug Info Here"
+            android:textColor="@android:color/holo_red_dark"
+            android:visibility="visible" />
+
         <com.google.android.material.tabs.TabLayout
             android:id="@+id/tab_layout"
             android:layout_width="match_parent"
@@ -19,19 +31,7 @@
             android:background="@android:color/transparent"
             app:tabIndicatorColor="@color/pink_accent_color"
             app:tabSelectedTextColor="@color/pink_accent_color"
-            app:tabTextColor="#80FFFFFF" />
-
-        <TextView
-            android:id="@+id/txtoutput"
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginTop="16dp"
-            app:layout_constraintEnd_toEndOf="parent"
-            app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/tab_layout"
-            android:text="Debug Info Here"
-            android:textColor="#ffffff"
-            android:visibility="gone" />
+            app:tabTextColor="@color/semi_transparent_white" />
 
         <androidx.viewpager2.widget.ViewPager2
             android:id="@+id/view_pager"
@@ -40,18 +40,25 @@
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
             app:layout_constraintStart_toStartOf="parent"
-            app:layout_constraintTop_toBottomOf="@id/txtoutput" />
+            app:layout_constraintTop_toBottomOf="@id/tab_layout" />
 
-        <com.google.android.material.floatingactionbutton.FloatingActionButton
+        <com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton
             android:id="@+id/fab_start"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_margin="16dp"
+            android:layout_marginBottom="32dp"
             app:layout_constraintBottom_toBottomOf="parent"
             app:layout_constraintEnd_toEndOf="parent"
-            android:src="@drawable/ic_stop_white_24dp"
+            app:layout_constraintStart_toStartOf="parent"
+            android:text="@string/stop"
+            android:textColor="@android:color/black"
+            android:textSize="20sp"
+            android:textStyle="bold"
             app:backgroundTint="@color/pink_accent_color"
-            app:tint="@android:color/white" />
+            app:cornerRadius="16dp"
+            app:icon="@drawable/ic_stop_white_24dp"
+            app:iconTint="@android:color/white" />
     </androidx.constraintlayout.widget.ConstraintLayout>
 
 </androidx.coordinatorlayout.widget.CoordinatorLayout>
