@@ -1,132 +1,138 @@
 package com.smarttechnologies.app.blackoverlay;
 
+import android.content.SharedPreferences;
 import android.os.Bundle;
-import android.view.LayoutInflater;
-import android.view.View;
-import android.view.ViewGroup;
-import android.widget.CheckBox;
-import android.widget.LinearLayout;
 import android.widget.Toast;
 
 import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
-import androidx.fragment.app.Fragment;
+import androidx.preference.ListPreference;
+import androidx.preference.Preference;
+import androidx.preference.PreferenceFragmentCompat;
+import androidx.preference.PreferenceManager;
+import androidx.preference.SwitchPreferenceCompat;
 
-public class SettingsFragment extends Fragment {
+public class SettingsFragment extends PreferenceFragmentCompat {
 
-	// CheckBoxes
-	private CheckBox checkboxAlwaysOn;
-	private CheckBox checkboxSkipUnlock;
-	private CheckBox checkboxBiometricAuth;
-	private CheckBox checkboxPocketDetection;
-	private CheckBox checkboxReduceBrightness;
-	private CheckBox checkboxOledBurnIn;
-	private CheckBox checkboxQuickTiles;
-	private CheckBox checkboxBatteryOptimization;
-	private CheckBox checkboxHideFloatingButton;
-
-	// Clickable sections
-	private LinearLayout settingsUpgradePro;
-	private LinearLayout settingsTheme;
-	private LinearLayout settingsFloatingButtonAction;
-	private LinearLayout settingsNotifications;
-	private LinearLayout settingsAppLanguage;
-	private LinearLayout settingsTapsToWake;
-
-	public SettingsFragment() {
-		// Required empty public constructor
-	}
+	private SharedPreferences sharedPreferences;
 
 	@Override
-	public View onCreateView(@NonNull LayoutInflater inflater, ViewGroup container, Bundle savedInstanceState) {
-		return inflater.inflate(R.layout.fragment_settings, container, false);
+	public void onCreatePreferences(@Nullable Bundle savedInstanceState, @Nullable String rootKey) {
+		// Load the preferences from the XML file
+		setPreferencesFromResource(R.xml.fragment_settings, rootKey);
+
+		// Get the default SharedPreferences
+		sharedPreferences = PreferenceManager.getDefaultSharedPreferences(requireContext());
+
+		// Set up the listeners for various preference items
+		setupPreferenceListeners();
 	}
 
-	@Override
-	public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
-		super.onViewCreated(view, savedInstanceState);
+	private void setupPreferenceListeners() {
+		// Find the "lockt_ype" ListPreference and update its summary
+		ListPreference lockTypeListPreference = findPreference("lock_type");
+		if (lockTypeListPreference != null) {
+			lockTypeListPreference.setOnPreferenceChangeListener((preference, newValue) -> {
+				// Update the summary to the new selected value
+				lockTypeListPreference.setSummary(newValue.toString());
+				Toast.makeText(getContext(), "Theme set to: " + newValue, Toast.LENGTH_SHORT).show();
+				return true;
+			});
+			// Set the initial summary
+			lockTypeListPreference.setSummary(lockTypeListPreference.getEntry());
+		}
 
-		// Find all views
-		findAllViews(view);
+		// Find the "Upgrade to Pro" preference and set a listener
+		Preference upgradeProPreference = findPreference("settings_upgrade_pro");
+		if (upgradeProPreference != null) {
+			upgradeProPreference.setOnPreferenceClickListener(preference -> {
+				Toast.makeText(getContext(), "Upgrade to Pro clicked", Toast.LENGTH_SHORT).show();
+				return true;
+			});
+		}
 
-		// Set up all listeners
-		setupListeners();
+		// Find the "Theme" ListPreference and update its summary
+		ListPreference themeListPreference = findPreference("theme");
+		if (themeListPreference != null) {
+			themeListPreference.setOnPreferenceChangeListener((preference, newValue) -> {
+				// Update the summary to the new selected value
+				themeListPreference.setSummary(newValue.toString());
+				Toast.makeText(getContext(), "Theme set to: " + newValue, Toast.LENGTH_SHORT).show();
+				return true;
+			});
+			// Set the initial summary
+			themeListPreference.setSummary(themeListPreference.getEntry());
+		}
+
+		// Find the "Always-On Display" SwitchPreferenceCompat and set a listener
+		SwitchPreferenceCompat alwaysOnDisplayPreference = findPreference("always_on_display");
+		if (alwaysOnDisplayPreference != null) {
+			alwaysOnDisplayPreference.setOnPreferenceChangeListener((preference, newValue) -> {
+				boolean isChecked = (boolean) newValue;
+				alwaysOnDisplayPreference
+						.setSummary(isChecked ? "Always-on display is enabled, tap to unlock the screen"
+								: "Always-on display is disabled, tap to wake the screen");
+				Toast.makeText(getContext(), "Always-On Display: " + (isChecked ? "On" : "Off"), Toast.LENGTH_SHORT)
+						.show();
+				return true;
+			});
+			// Set the initial summary based on the saved state
+			boolean isChecked = sharedPreferences.getBoolean("always_on_display", false);
+			alwaysOnDisplayPreference.setSummary(isChecked ? "Always-on display is enabled, tap to unlock the screen"
+					: "Always-on display is disabled, tap to wake the screen");
+		}
+
+		// Set up listeners for other SwitchPreferenceCompat items
+		setupSwitchPreferenceListener("skip_unlock_screen", "Skip Unlock Screen");
+		setupSwitchPreferenceListener("biometric_auth", "Biometric Auth");
+		setupSwitchPreferenceListener("pocket_detection", "Pocket Detection");
+		setupSwitchPreferenceListener("reduce_brightness", "Reduce Brightness");
+		setupSwitchPreferenceListener("oled_burn_in_protection", "OLED Burn-In Protection");
+		setupSwitchPreferenceListener("quick_tiles_instant_blackout", "Quick Tiles Instant Blackout");
+		setupSwitchPreferenceListener("disable_battery_optimization", "Battery Optimization");
+		setupSwitchPreferenceListener("hide_floating_button", "Hide Floating Button");
+
+		// Set up listeners for other ListPreference items
+		setupListPreferenceListener("floating_button_action", "Floating Button Action");
+		setupListPreferenceListener("app_language", "App Language");
+		setupListPreferenceListener("taps_to_wake", "Taps to Wake");
+
+		// Find the "Notifications" preference and set a listener
+		Preference notificationsPreference = findPreference("settings_notifications");
+		if (notificationsPreference != null) {
+			notificationsPreference.setOnPreferenceClickListener(preference -> {
+				Toast.makeText(getContext(), "Notifications settings clicked", Toast.LENGTH_SHORT).show();
+				return true;
+			});
+		}
 	}
 
-	private void findAllViews(View view) {
-		// CheckBoxes
-		checkboxAlwaysOn = view.findViewById(R.id.checkbox_always_on);
-		checkboxSkipUnlock = view.findViewById(R.id.checkbox_skip_unlock);
-		checkboxBiometricAuth = view.findViewById(R.id.checkbox_biometric_auth);
-		checkboxPocketDetection = view.findViewById(R.id.checkbox_pocket_detection);
-		checkboxReduceBrightness = view.findViewById(R.id.checkbox_reduce_brightness);
-		checkboxOledBurnIn = view.findViewById(R.id.checkbox_oled_burn_in);
-		checkboxQuickTiles = view.findViewById(R.id.checkbox_quick_tiles);
-		checkboxBatteryOptimization = view.findViewById(R.id.checkbox_battery_optimization);
-		checkboxHideFloatingButton = view.findViewById(R.id.checkbox_hide_floating_button);
-
-		// Clickable sections
-		settingsUpgradePro = view.findViewById(R.id.settings_upgrade_pro);
-		settingsTheme = view.findViewById(R.id.settings_theme);
-		settingsFloatingButtonAction = view.findViewById(R.id.settings_floating_button_action);
-		settingsNotifications = view.findViewById(R.id.settings_notifications);
-		settingsAppLanguage = view.findViewById(R.id.settings_app_language);
-		settingsTapsToWake = view.findViewById(R.id.settings_taps_to_wake);
+	private void setupSwitchPreferenceListener(String key, String toastMessage) {
+		SwitchPreferenceCompat preference = findPreference(key);
+		if (preference != null) {
+			preference.setOnPreferenceChangeListener((pref, newValue) -> {
+				boolean isChecked = (boolean) newValue;
+				// You can add more specific summary logic here if needed, similar to "always_on_display"
+				Toast.makeText(getContext(), toastMessage + ": " + (isChecked ? "On" : "Off"), Toast.LENGTH_SHORT)
+						.show();
+				return true;
+			});
+		}
 	}
 
-	private void setupListeners() {
-		// Click listeners for sections that open a new activity or dialog
-		settingsUpgradePro.setOnClickListener(
-				v -> Toast.makeText(getContext(), "Upgrade to Pro clicked", Toast.LENGTH_SHORT).show());
-		settingsTheme.setOnClickListener(v -> Toast.makeText(getContext(), "Theme clicked", Toast.LENGTH_SHORT).show());
-		settingsFloatingButtonAction.setOnClickListener(
-				v -> Toast.makeText(getContext(), "Floating Button Action clicked", Toast.LENGTH_SHORT).show());
-		settingsNotifications.setOnClickListener(
-				v -> Toast.makeText(getContext(), "Notifications clicked", Toast.LENGTH_SHORT).show());
-		settingsAppLanguage.setOnClickListener(
-				v -> Toast.makeText(getContext(), "App Language clicked", Toast.LENGTH_SHORT).show());
-		settingsTapsToWake.setOnClickListener(
-				v -> Toast.makeText(getContext(), "Taps to Wake clicked", Toast.LENGTH_SHORT).show());
-
-		// Checkbox change listeners
-		checkboxAlwaysOn.setOnCheckedChangeListener((buttonView, isChecked) -> {
-			Toast.makeText(getContext(), "Always-On Display: " + (isChecked ? "On" : "Off"), Toast.LENGTH_SHORT).show();
-		});
-
-		checkboxSkipUnlock.setOnCheckedChangeListener((buttonView, isChecked) -> {
-			Toast.makeText(getContext(), "Skip Unlock Screen: " + (isChecked ? "On" : "Off"), Toast.LENGTH_SHORT)
-					.show();
-		});
-
-		checkboxBiometricAuth.setOnCheckedChangeListener((buttonView, isChecked) -> {
-			Toast.makeText(getContext(), "Biometric Auth: " + (isChecked ? "On" : "Off"), Toast.LENGTH_SHORT).show();
-		});
-
-		checkboxPocketDetection.setOnCheckedChangeListener((buttonView, isChecked) -> {
-			Toast.makeText(getContext(), "Pocket Detection: " + (isChecked ? "On" : "Off"), Toast.LENGTH_SHORT).show();
-		});
-
-		checkboxReduceBrightness.setOnCheckedChangeListener((buttonView, isChecked) -> {
-			Toast.makeText(getContext(), "Reduce Brightness: " + (isChecked ? "On" : "Off"), Toast.LENGTH_SHORT).show();
-		});
-
-		checkboxOledBurnIn.setOnCheckedChangeListener((buttonView, isChecked) -> {
-			Toast.makeText(getContext(), "OLED Burn-In Protection: " + (isChecked ? "On" : "Off"), Toast.LENGTH_SHORT)
-					.show();
-		});
-
-		checkboxQuickTiles.setOnCheckedChangeListener((buttonView, isChecked) -> {
-			Toast.makeText(getContext(), "Quick Tiles: " + (isChecked ? "On" : "Off"), Toast.LENGTH_SHORT).show();
-		});
-
-		checkboxBatteryOptimization.setOnCheckedChangeListener((buttonView, isChecked) -> {
-			Toast.makeText(getContext(), "Battery Optimization: " + (isChecked ? "Disabled" : "Enabled"),
-					Toast.LENGTH_SHORT).show();
-		});
-
-		checkboxHideFloatingButton.setOnCheckedChangeListener((buttonView, isChecked) -> {
-			Toast.makeText(getContext(), "Floating Button: " + (isChecked ? "Hidden" : "Visible"), Toast.LENGTH_SHORT)
-					.show();
-		});
+	private void setupListPreferenceListener(String key, String toastMessage) {
+		ListPreference preference = findPreference(key);
+		if (preference != null) {
+			// Set up a listener to update the summary and show a Toast
+			preference.setOnPreferenceChangeListener((pref, newValue) -> {
+				int index = preference.findIndexOfValue(newValue.toString());
+				CharSequence newEntry = preference.getEntries()[index];
+				preference.setSummary(newEntry);
+				Toast.makeText(getContext(), toastMessage + " set to: " + newEntry, Toast.LENGTH_SHORT).show();
+				return true;
+			});
+			// Set the initial summary based on the current value
+			preference.setSummary(preference.getEntry());
+		}
 	}
 }

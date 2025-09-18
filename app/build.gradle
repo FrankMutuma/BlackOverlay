@@ -25,7 +25,9 @@ sourceCompatibility JavaVersion.VERSION_1_8
 targetCompatibility JavaVersion.VERSION_1_8
 }
 dependencies {
-
+    //Required for useSimpleSummaryProvider attribute in preferences.xml
+    implementation 'androidx.preference:preference-ktx:1.2.1'
+	
     // Required for AppCompatActivity and general AndroidX compatibility
     implementation 'androidx.appcompat:appcompat:1.7.0' // Or latest stable version
 

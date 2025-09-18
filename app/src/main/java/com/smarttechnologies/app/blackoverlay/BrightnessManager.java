@@ -8,8 +8,8 @@ import android.view.WindowManager;
 
 public class BrightnessManager {
 	private static final String TAG = "BrightnessManager";
-	private static final int SYSTEM_BRIGHTNESS_MIN = 1;
-	private static final float WINDOW_BRIGHTNESS_ABSOLUTE_MIN = 0.00f;
+	private static final int SYSTEM_BRIGHTNESS_MIN = 15;
+	private static final float WINDOW_BRIGHTNESS_ABSOLUTE_MIN = 0.15f;
 
 	private Context context;
 	private WindowManager.LayoutParams overlayParams;

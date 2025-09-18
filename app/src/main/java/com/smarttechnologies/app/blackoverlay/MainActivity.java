@@ -14,6 +14,7 @@ import android.widget.Toast;
 import androidx.appcompat.app.AppCompatActivity;
 import androidx.cardview.widget.CardView;
 import androidx.fragment.app.Fragment;
+import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 import androidx.viewpager2.widget.ViewPager2;
@@ -38,10 +39,9 @@ public class MainActivity extends AppCompatActivity implements PermissionManager
 	private PermissionManager permissionManager;
 	private AppPreferencesManager prefsManager;
 	private SharedViewModel sharedViewModel;
-	private Handler handler;
-	private Runnable updateTimeRunnable;
 	private BroadcastReceiver serviceStateReceiver;
-	ViewPager2 viewPager;
+	private ViewPager2 viewPager;
+	private ClockUtils clockUtils;
 	//declare time and date textviews
 	private TextView dateDayTextView;
 	private TextView timeTextView;
@@ -58,15 +58,16 @@ public class MainActivity extends AppCompatActivity implements PermissionManager
 		permissionManager = new PermissionManager(this, this);
 		// Get the shared ViewModel instance
 		sharedViewModel = new ViewModelProvider(this).get(SharedViewModel.class);
-
-		// Initialize the handler for the clock
-		handler = new Handler(Looper.getMainLooper());
+		//initialize ClockUtils
+		clockUtils = new ClockUtils(sharedViewModel);
 
 		setupUI();
+		observeViewModel();
 		setupReceiver();
 
 		// Check and request permissions as the first order of business
 		permissionManager.checkAndRequestPermissions();
+
 	}
 
 	private void setupUI() {
@@ -133,39 +134,28 @@ public class MainActivity extends AppCompatActivity implements PermissionManager
 		};
 	}
 
-	private void startUpdatingTime() {
-		updateTimeRunnable = new Runnable() {
+	private void observeViewModel() {
+		// Observer for the time TextView
+		sharedViewModel.getCurrentTime().observe(this, new Observer<String>() {
 			@Override
-			public void run() {
-				// Get current time and date strings
-				SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm", Locale.getDefault());
-				String currentTime = timeFormat.format(new Date());
-
-				SimpleDateFormat dateFormat = new SimpleDateFormat("EEE, MMM dd", Locale.getDefault());
-				String currentDate = dateFormat.format(new Date());
-
-				// Update the LiveData for Fragments
-				sharedViewModel.setCurrentTime(currentTime);
-
-				// Update the Activity's TextViews directly
-				if (timeTextView != null) {
-					timeTextView.setText(currentTime);
-				}
-				if (dateDayTextView != null) {
-					dateDayTextView.setText(currentDate);
-				}
-
-				// Schedule the next update
-				handler.postDelayed(this, 1000);
+			public void onChanged(String s) {
+				timeTextView.setText(s);
+				timeTextView.setContentDescription("Current time is " + s);
 			}
-		};
-		handler.post(updateTimeRunnable);
+		});
+
+		// Observer for the date TextView
+		sharedViewModel.getCurrentDate().observe(this, new Observer<String>() {
+			@Override
+			public void onChanged(String s) {
+				dateDayTextView.setText(s);
+				dateDayTextView.setContentDescription("Today's date is " + s);
+			}
+		});
 	}
 
 	private void stopUpdatingTime() {
-		if (handler != null && updateTimeRunnable != null) {
-			handler.removeCallbacks(updateTimeRunnable);
-		}
+		clockUtils.stopTimer();
 	}
 
 	//--- PermissionCallback Methods ---//
@@ -209,7 +199,7 @@ public class MainActivity extends AppCompatActivity implements PermissionManager
 	protected void onResume() {
 		super.onResume();
 		//Start updating time
-		startUpdatingTime();
+		clockUtils.startTimer();
 		// Register the receiver
 		LocalBroadcastManager.getInstance(this).registerReceiver(serviceStateReceiver,
 				new IntentFilter(FloatingButtonService.ACTION_SERVICE_STATE_CHANGED));
@@ -218,8 +208,8 @@ public class MainActivity extends AppCompatActivity implements PermissionManager
 	@Override
 	protected void onPause() {
 		super.onPause();
-		//Start updating time
-		stopUpdatingTime();
+		//Stop updating time
+		clockUtils.stopTimer();
 		// Unregister the receiver
 		LocalBroadcastManager.getInstance(this).unregisterReceiver(serviceStateReceiver);
 	}

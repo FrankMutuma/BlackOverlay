@@ -189,11 +189,6 @@ public class LookFeelFragment extends Fragment {
 
 	}
 
-	// Example public method to stop the clock
-	public void stopClock(ClockUtils clockUtils) {
-		clockUtils.stopUpdatingTime();
-	}
-
 	private void updateLockSizePreviews(int sizeDp) {
 		// Convert dp to pixels using the utility class
 		int sizePx = DisplayUtils.dpToPx(requireContext(), sizeDp);

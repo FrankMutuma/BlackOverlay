@@ -1,0 +1,66 @@
+<PreferenceScreen xmlns:android="http://schemas.android.com/apk/res/android" xmlns:app="http://schemas.android.com/apk/res-auto">
+
+    <Preference android:layout="@layout/divider" android:selectable="false" />
+    <Preference android:icon="@drawable/ic_star_white_24dp" android:key="settings_upgrade_pro" android:summary="Upgrade to Black Screen Pro and enjoy ad-free experience, premium features and priority support." android:title="Upgrade to Black Screen Pro" app:iconTint="@color/pink_accent_color" />
+    <Preference android:layout="@layout/divider" android:selectable="false" />
+
+    <ListPreference android:defaultValue="blackoverlay" android:entries="@array/lock_type_entries" android:entryValues="@array/lock_type_values" android:icon="@drawable/ic_phone_android_white_24dp" android:key="lock_type" android:summary="Black Overlay (Default)" android:title="Type of Lock Screen" />
+
+    <Preference android:layout="@layout/divider" android:selectable="false" />
+
+    <ListPreference android:defaultValue="system_default" android:entries="@array/theme_entries" android:entryValues="@array/theme_values" android:icon="@drawable/ic_dark_mode_white_24dp" android:key="theme" android:summary="System Default (Recommended)" android:title="Theme" />
+
+    <Preference android:layout="@layout/divider" android:selectable="false" />
+
+    <SwitchPreferenceCompat android:defaultValue="false" android:icon="@drawable/ic_phone_android_white_24dp" android:key="always_on_display" android:summary="Always-on display is disabled, tap to wake the screen" android:title="Always-On Display" />
+
+    <Preference android:layout="@layout/divider" android:selectable="false" />
+
+    <SwitchPreferenceCompat android:defaultValue="false" android:icon="@drawable/ic_lock_open_white_24dp" android:key="skip_unlock_screen" android:summary="Directly unlock the screen on tap" android:title="Skip Unlock Screen" />
+
+    <Preference android:layout="@layout/divider" android:selectable="false" />
+
+    <ListPreference android:defaultValue="2" android:entries="@array/taps_to_wake_entries" android:entryValues="@array/taps_to_wake_values" android:icon="@drawable/ic_tap_and_hold_white_24dp" android:key="taps_to_wake" android:summary="2" android:title="Taps to Wake" />
+
+    <Preference android:layout="@layout/divider" android:selectable="false" />
+
+    <SwitchPreferenceCompat android:defaultValue="false" android:icon="@drawable/ic_visibility_off_white_24dp" android:key="hide_floating_button" android:summary="Floating button will not be shown, use notification to show/hide black screen" android:title="Hide Floating Button" />
+
+    <Preference android:layout="@layout/divider" android:selectable="false" />
+
+    <ListPreference android:defaultValue="none" android:entries="@array/floating_button_actions" android:entryValues="@array/floating_button_action_values" android:icon="@drawable/ic_touch_app_white_24dp" android:key="floating_button_action" android:summary="Do nothing" android:title="Floating Button Long Press Action" />
+
+    <Preference android:layout="@layout/divider" android:selectable="false" />
+
+    <SwitchPreferenceCompat android:defaultValue="false" android:icon="@drawable/ic_fingerprint_white_24dp" android:key="biometric_auth" android:summary="Use fingerprint or face recognition to enhance security" android:title="Enable Biometric Auth.." />
+
+    <Preference android:layout="@layout/divider" android:selectable="false" />
+
+    <SwitchPreferenceCompat android:defaultValue="false" android:icon="@drawable/ic_pocket_24dp" android:key="pocket_detection" android:summary="Prevent accidental touches when the device is in your pocket" android:title="Enable Pocket Detection" />
+
+    <Preference android:layout="@layout/divider" android:selectable="false" />
+
+    <SwitchPreferenceCompat android:defaultValue="false" android:icon="@drawable/ic_brightness_24dp" android:key="reduce_brightness" android:summary="When enabled, screen brightness will also reduce when Black Screen is Showing, this is helpful for non-AMOLED displays" android:title="Reduce Screen Brightness With Black Screen" />
+
+    <Preference android:layout="@layout/divider" android:selectable="false" />
+
+    <SwitchPreferenceCompat android:defaultValue="false" android:icon="@drawable/ic_screen_rotation_white_24dp" android:key="oled_burn_in_protection" android:summary="Enable this option to periodically shift screen contents and reduce the risk of screen burn-in on OLED displays" android:title="Enable OLED Burn-In Prot.." />
+
+    <Preference android:layout="@layout/divider" android:selectable="false" />
+
+    <SwitchPreferenceCompat android:defaultValue="false" android:icon="@drawable/ic_quick_tile_white_24dp" android:key="quick_tiles_instant_blackout" android:summary="When enabled, Quick Tiles will immediately trigger a black screen instead of showing the floating button." android:title="Quick Tiles Instant Blacko.." />
+
+    <Preference android:layout="@layout/divider" android:selectable="false" />
+    <Preference android:icon="@drawable/ic_notifications_white_24dp" android:key="settings_notifications" android:summary="Open app&apos;s notification settings" android:title="Hide/Show Notifications" />
+    <Preference android:layout="@layout/divider" android:selectable="false" />
+
+    <SwitchPreferenceCompat android:defaultValue="false" android:icon="@drawable/ic_battery_saver_24dp" android:key="disable_battery_optimization" android:summary="Disable battery optimization for Black Screen to prevent it from getting killed by system" android:title="Disable Battery Optimization" />
+
+    <Preference android:layout="@layout/divider" android:selectable="false" />
+
+    <ListPreference android:defaultValue="en" android:entries="@array/language_entries" android:entryValues="@array/language_values" android:icon="@drawable/ic_language_white_24dp" android:key="app_language" android:summary="English" android:title="App Language" />
+
+    <Preference android:layout="@layout/divider" android:selectable="false" />
+    <Preference android:layout="@layout/spacer_preference" android:selectable="false" />
+
+</PreferenceScreen>

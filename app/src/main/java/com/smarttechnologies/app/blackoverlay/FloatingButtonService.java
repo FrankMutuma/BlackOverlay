@@ -5,39 +5,41 @@ import android.content.BroadcastReceiver;
 import android.content.IntentFilter;
 import android.content.Context;
 import android.os.Build;
-import android.os.Handler;
 import android.app.Notification;
 import android.app.NotificationManager;
 import android.app.NotificationChannel;
 import android.app.Service;
 import android.content.Intent;
 import android.graphics.PixelFormat;
-import android.os.Looper;
+import android.os.IBinder;
 import android.os.VibrationEffect;
 import android.os.Vibrator;
 import android.os.VibratorManager;
+import android.util.Log;
 import android.view.ViewGroup;
 import android.view.Gravity;
 import android.view.MotionEvent;
-import android.os.IBinder;
 import android.view.LayoutInflater;
 import android.view.WindowInsets;
 import android.view.WindowInsetsController;
 import android.view.WindowManager;
-import android.widget.TextView;
-import android.widget.Toast;
 import android.view.View;
 import android.widget.ImageView;
-import androidx.core.view.WindowCompat;
+import android.widget.TextView;
+import android.widget.Toast;
+import androidx.annotation.NonNull;
+import androidx.lifecycle.Observer;
+import androidx.lifecycle.ViewModelProvider;
+import androidx.lifecycle.ViewModelStore;
+import androidx.lifecycle.ViewModelStoreOwner;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
-import java.util.Locale;
-import java.util.Date;
-import java.text.SimpleDateFormat;
 
-public class FloatingButtonService extends Service {
-	public static final String ACTION_SERVICE_STATE_CHANGED = "com.yourpackage.SERVICE_STATE_CHANGED";
+public class FloatingButtonService extends Service implements ViewModelStoreOwner {
 	private WindowManager windowManager;
 	private AppPreferencesManager appSettingsManager;
+	private ViewModelStore viewModelStore;
+	private SharedViewModel sharedViewModel;
+	private ServiceLifecycleOwner serviceLifecycleOwner;
 	private ClockUtils clockUtils;
 	private BrightnessManager brightnessManager;
 	private BroadcastReceiver sizeChangeReceiver;
@@ -46,16 +48,17 @@ public class FloatingButtonService extends Service {
 	private View blackScreenOverlay;
 	private TextView timeTextView;
 	private TextView dateDayTextView;
+
+	// Constants
+	public static final String ACTION_SERVICE_STATE_CHANGED = "com.yourpackage.SERVICE_STATE_CHANGED";
 	private static final String CHANNEL_ID = "FloatingButtonServiceChannel";
-	private static final int MAX_CLICK_DURATION = 200; // Maximum duration for a click in milliseconds
-	// Notification Action Constants
 	private static final String ACTION_TOGGLE_OVERLAY = "ACTION_TOGGLE_OVERLAY";
 	private static final String ACTION_STOP_SERVICE = "ACTION_STOP_SERVICE";
 	private boolean isOverlayActive = false;
 	private int floatingButtonSize;
 
-	public FloatingButtonService() {
-	}
+	/*public FloatingButtonService() {
+	}*/
 
 	@Override
 	public IBinder onBind(Intent intent) {
@@ -65,28 +68,38 @@ public class FloatingButtonService extends Service {
 	@Override
 	public void onCreate() {
 		super.onCreate();
-		// Create notification channel
+
+		// 1. Initialize custom LifecycleOwner first
+		serviceLifecycleOwner = new ServiceLifecycleOwner();
+		serviceLifecycleOwner.onServiceCreated();
+
+		// 2. Initialize ViewModelStore before ViewModelProvider
+		viewModelStore = new ViewModelStore();
+
+		// 3. Get ViewModel using the correct owner
+		sharedViewModel = new ViewModelProvider(this).get(SharedViewModel.class);
+
+		// 4. Instantiate ClockUtils and pass the ViewModel
+		clockUtils = new ClockUtils(sharedViewModel);
+
+		brightnessManager = new BrightnessManager(this);
+
+		// 5. Build and start the foreground service
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O) {
-			NotificationChannel channel = new NotificationChannel("FloatingButtonServiceChannel",
-					"Floating Button Service Channel", NotificationManager.IMPORTANCE_LOW);
+			NotificationChannel channel = new NotificationChannel(CHANNEL_ID, "Floating Button Service Channel",
+					NotificationManager.IMPORTANCE_LOW);
 			NotificationManager manager = getSystemService(NotificationManager.class);
 			manager.createNotificationChannel(channel);
 		}
-
-		// Start as foreground service
 		startForeground(1, buildNotification());
 
-		// Get the initial size from preferences
+		// 6. Get initial size and initialize other components
 		appSettingsManager = AppPreferencesManager.getInstance(this);
-		// Get the initial size from preferences
 		floatingButtonSize = appSettingsManager.getFloatingLockSize();
-		// Initialize window manager
+
 		windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
 
-		clockUtils = new ClockUtils();
-		brightnessManager = new BrightnessManager(this);
-
-		// Register receiver for size changes
+		// 7. Register receiver for size changes
 		sizeChangeReceiver = new BroadcastReceiver() {
 			@Override
 			public void onReceive(Context context, Intent intent) {
@@ -96,18 +109,262 @@ public class FloatingButtonService extends Service {
 				}
 			}
 		};
-
 		IntentFilter filter = new IntentFilter("FLOATING_LOCK_SIZE_CHANGED");
 		registerReceiver(sizeChangeReceiver, filter);
 
-		// Create the floating button
+		// 8. Create the floating button
 		createFloatingButton();
+
+		// 9. Start observing LiveData immediately
+		observeLiveData();
+	}
+
+	@NonNull
+	@Override
+	public ViewModelStore getViewModelStore() {
+		return viewModelStore;
+	}
+
+	@Override
+	public int onStartCommand(Intent intent, int flags, int startId) {
+		// Notify the custom LifecycleOwner that the Service has started.
+		serviceLifecycleOwner.onServiceStarted();
+
+		// Start the clock timer here, so it only runs when the service is active
+		clockUtils.startTimer();
+
+		// Broadcast that the service has started
+		Intent stateIntent = new Intent(ACTION_SERVICE_STATE_CHANGED);
+		stateIntent.putExtra("is_running", true);
+		LocalBroadcastManager.getInstance(this).sendBroadcast(stateIntent);
+
+		// Handle incoming actions from the notification.
+		if (intent != null && intent.getAction() != null) {
+			switch (intent.getAction()) {
+			case ACTION_TOGGLE_OVERLAY:
+				if (isOverlayActive) {
+					hideBlackScreen();
+				} else {
+					if (appSettingsManager.getPreventTouch()) {
+						showUntouchableBlackScreen();
+					} else {
+						showTouchableBlackScreen();
+					}
+				}
+				break;
+			case ACTION_STOP_SERVICE:
+				stopSelf();
+				break;
+			}
+		}
+
+		return START_STICKY;
+	}
+
+	@Override
+	public void onDestroy() {
+		super.onDestroy();
+
+		// Unregister the receiver
+		if (sizeChangeReceiver != null) {
+			unregisterReceiver(sizeChangeReceiver);
+		}
+
+		// Remove views
+		if (floatingView != null && windowManager != null) {
+			windowManager.removeView(floatingView);
+		}
+		if (blackScreenOverlay != null) {
+			windowManager.removeView(blackScreenOverlay);
+		}
+
+		// Stop the timer
+		clockUtils.stopTimer();
+
+		// Clear the ViewModelStore and notify the LifecycleOwner
+		viewModelStore.clear();
+		serviceLifecycleOwner.onServiceDestroyed();
+
+		// Stop being a foreground service
+		stopForeground(STOP_FOREGROUND_REMOVE);
+
+		// Broadcast that the service has stopped
+		Intent stateIntent = new Intent(ACTION_SERVICE_STATE_CHANGED);
+		stateIntent.putExtra("is_running", false);
+		LocalBroadcastManager.getInstance(this).sendBroadcast(stateIntent);
+	}
+
+	private void observeLiveData() {
+		// Observe the time LiveData
+		sharedViewModel.getCurrentTime().observe(serviceLifecycleOwner, newTime -> {
+			if (timeTextView != null) {
+				try {
+					timeTextView.setText(newTime);
+					timeTextView.setContentDescription("Current time is " + newTime);
+				} catch (Exception e) {
+					// Log the error for debugging
+					Log.e("FloatingButtonService", "Error updating time TextView: " + e.getMessage());
+
+					// Display an error message to the user
+					Toast.makeText(this, "Error: Time display failed. Please restart the app.", Toast.LENGTH_LONG)
+							.show();
+				}
+			}
+		});
+
+		// Observe the date LiveData
+		sharedViewModel.getCurrentDate().observe(serviceLifecycleOwner, newDate -> {
+			if (dateDayTextView != null) {
+				try {
+					dateDayTextView.setText(newDate);
+					dateDayTextView.setContentDescription("Today's date is " + newDate);
+				} catch (Exception e) {
+					// Log the error for debugging
+					Log.e("FloatingButtonService", "Error updating date TextView: " + e.getMessage());
+
+					// Display an error message to the user
+					Toast.makeText(this, "Error: Date display failed. Please restart the app.", Toast.LENGTH_LONG)
+							.show();
+				}
+			}
+		});
+	}
+
+	private void showUntouchableBlackScreen() {
+		Log.d("overlay", "show untouchable");
+
+		// Inflate and show the untouchable overlay
+		if (blackScreenOverlay == null) {
+			blackScreenOverlay = LayoutInflater.from(this).inflate(R.layout.black_screen_untouchable_layout, null);
+			timeTextView = blackScreenOverlay.findViewById(R.id.overlay_time);
+			dateDayTextView = blackScreenOverlay.findViewById(R.id.overlay_date_and_day);
+		}
+
+		// Set up window manager params and add view
+		WindowManager.LayoutParams params = new WindowManager.LayoutParams(WindowManager.LayoutParams.MATCH_PARENT,
+				WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+				WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
+						| WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
+				PixelFormat.TRANSLUCENT);
+
+		// CRUCIAL: Add the missing layout parameters back
+		params.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
+		params.gravity = Gravity.TOP | Gravity.START;
+		params.x = 0;
+		params.y = 0;
+
+		brightnessManager.setOverlayParams(params);
+		if (brightnessManager.canWriteSystemSettings()) {
+			brightnessManager.applyCombinedBrightness();
+		} else {
+			brightnessManager.applyInAppWindowBrightness();
+		}
+
+		// Also set the view itself to be fullscreen
+		blackScreenOverlay.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+				| View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
+
+		// Re-add the touch listener to the blackScreenOverlay
+		blackScreenOverlay.setOnTouchListener(new View.OnTouchListener() {
+			private static final int TAP_COUNT_TO_UNLOCK = 3;
+			private static final long TAP_TIMEOUT_MS = 300;
+			private long lastTapTime = 0;
+			private int tapCount = 0;
+
+			@Override
+			public boolean onTouch(View v, MotionEvent event) {
+				if (event.getAction() == MotionEvent.ACTION_DOWN) {
+					long currentTime = System.currentTimeMillis();
+					if (currentTime - lastTapTime < TAP_TIMEOUT_MS) {
+						tapCount++;
+					} else {
+						tapCount = 1;
+					}
+					lastTapTime = currentTime;
+
+					if (tapCount == TAP_COUNT_TO_UNLOCK) {
+						vibrate();
+						hideBlackScreen();
+						tapCount = 0;
+						return true;
+					}
+				}
+				return true;
+			}
+		});
+
+		windowManager.addView(blackScreenOverlay, params);
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
+			blackScreenOverlay.getWindowInsetsController()
+					.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
+
+			// Hide system bars
+			blackScreenOverlay.getWindowInsetsController().hide(WindowInsets.Type.systemBars());
+		}
+
+		floatingView.setVisibility(View.GONE);
+		isOverlayActive = true;
+		updateNotification();
+
+		// The LiveData observers are already running, so they will handle the time and date updates.
+	}
+
+	private void showTouchableBlackScreen() {
+		Log.d("overlay", "show touchable");
+		// Inflate and show the touchable overlay
+		if (blackScreenOverlay == null) {
+			blackScreenOverlay = LayoutInflater.from(this).inflate(R.layout.black_screen_touchable_layout, null);
+		}
+		// Set up window manager params and add view
+		WindowManager.LayoutParams params = new WindowManager.LayoutParams(WindowManager.LayoutParams.MATCH_PARENT,
+				WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+				WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+						| WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION
+						| WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS
+						| WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR
+						| WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+				PixelFormat.TRANSLUCENT);
+		windowManager.addView(blackScreenOverlay, params);
+		floatingView.setVisibility(View.GONE);
+		isOverlayActive = true;
+		updateNotification();
+	}
+
+	private void hideBlackScreen() {
+		// Remove the overlay and restore state
+		if (blackScreenOverlay != null) {
+			brightnessManager.restoreBrightness();
+			windowManager.removeView(blackScreenOverlay);
+			blackScreenOverlay = null;
+			floatingView.setVisibility(View.VISIBLE);
+			isOverlayActive = false;
+			updateNotification();
+		}
 	}
 
 	private void createFloatingButton() {
+		// 1. Inflate the floating button layout.
 		floatingView = LayoutInflater.from(this).inflate(R.layout.floating_button_layout, null);
 
-		// Set the layout parameters
+		// 2. NOW, find the ImageView within the inflated layout.
+		// This is the correct place to call findViewById.
+		ImageView iconView = floatingView.findViewById(R.id.floating_button_icon);
+		// Also update the ImageView inside
+
+		if (iconView != null) {
+			Log.i("FloatingButtonService", "Icon view found!");
+			// Now you can safely manipulate the iconView.
+			ViewGroup.LayoutParams iconParams = iconView.getLayoutParams();
+			int sizeInPx = DisplayUtils.dpToPx(this, floatingButtonSize);
+			iconParams.width = sizeInPx;
+			iconParams.height = sizeInPx;
+			iconView.setLayoutParams(iconParams);
+		} else {
+			// Log an error if the view is still not found.
+			Log.e("FloatingButtonService", "Icon view not found in layout!");
+		}
+
+		// 3. Set the layout parameters for the floating view.
 		WindowManager.LayoutParams params = new WindowManager.LayoutParams(
 				DisplayUtils.dpToPx(this, floatingButtonSize), DisplayUtils.dpToPx(this, floatingButtonSize),
 				WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY, WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
@@ -118,7 +375,7 @@ public class FloatingButtonService extends Service {
 		params.x = 0;
 		params.y = 100;
 
-		// Add the view to the window manager
+		// 4. Add the view to the window manager.
 		windowManager.addView(floatingView, params);
 
 		// Add a combined touch and click listener to the view
@@ -166,14 +423,6 @@ public class FloatingButtonService extends Service {
 				return false;
 			}
 		});
-		// Also update the ImageView inside
-		ImageView iconView = floatingView.findViewById(R.id.floating_button_icon);
-		if (iconView != null) {
-			ViewGroup.LayoutParams iconParams = iconView.getLayoutParams();
-			iconParams.width = DisplayUtils.dpToPx(this, floatingButtonSize);
-			iconParams.height = DisplayUtils.dpToPx(this, floatingButtonSize);
-			iconView.setLayoutParams(iconParams);
-		}
 	}
 
 	//update the size
@@ -281,165 +530,6 @@ public class FloatingButtonService extends Service {
 			}
 		}
 
-	}
-
-	private void showUntouchableBlackScreen() {
-		floatingView.setVisibility(View.GONE);
-		blackScreenOverlay = LayoutInflater.from(this).inflate(R.layout.black_screen_untouchable_layout, null);
-		timeTextView = blackScreenOverlay.findViewById(R.id.overlay_time);
-		dateDayTextView = blackScreenOverlay.findViewById(R.id.overlay_date_and_day);
-
-		WindowManager.LayoutParams params = new WindowManager.LayoutParams(WindowManager.LayoutParams.MATCH_PARENT,
-				WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-				WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN | WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS
-						| WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE,
-				PixelFormat.TRANSLUCENT);
-
-		// Set the display cutout mode
-		params.layoutInDisplayCutoutMode = WindowManager.LayoutParams.LAYOUT_IN_DISPLAY_CUTOUT_MODE_ALWAYS;
-		// Set to cover entire screen including system bars
-		params.gravity = Gravity.TOP | Gravity.START;
-		params.x = 0;
-		params.y = 0;
-
-		brightnessManager.setOverlayParams(params);
-		if (brightnessManager.canWriteSystemSettings()) {
-			brightnessManager.applyCombinedBrightness();
-		} else {
-			brightnessManager.applyInAppWindowBrightness();
-		}
-
-		// Also set the view itself to be fullscreen
-		blackScreenOverlay.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-				| View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
-
-		blackScreenOverlay.setOnTouchListener(new View.OnTouchListener() {
-			private static final int TAP_COUNT_TO_UNLOCK = 3;
-			private static final long TAP_TIMEOUT_MS = 300;
-			private long lastTapTime = 0;
-			private int tapCount = 0;
-
-			@Override
-			public boolean onTouch(View v, MotionEvent event) {
-				if (event.getAction() == MotionEvent.ACTION_DOWN) {
-					long currentTime = System.currentTimeMillis();
-					if (currentTime - lastTapTime < TAP_TIMEOUT_MS) {
-						tapCount++;
-					} else {
-						tapCount = 1;
-					}
-					lastTapTime = currentTime;
-
-					if (tapCount == TAP_COUNT_TO_UNLOCK) {
-						vibrate();
-						hideBlackScreen();
-						tapCount = 0;
-						return true;
-					}
-				}
-				return true;
-			}
-		});
-
-		windowManager.addView(blackScreenOverlay, params);
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-			blackScreenOverlay.getWindowInsetsController()
-					.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
-
-			// Hide system bars
-			blackScreenOverlay.getWindowInsetsController().hide(WindowInsets.Type.systemBars());
-		}
-
-		clockUtils.startUpdatingTime(timeTextView, dateDayTextView);
-		isOverlayActive = true;
-		updateNotification();
-	}
-
-	private void showTouchableBlackScreen() {
-		floatingView.setVisibility(View.GONE);
-		blackScreenOverlay = LayoutInflater.from(this).inflate(R.layout.black_screen_touchable_layout, null);
-
-		WindowManager.LayoutParams params = new WindowManager.LayoutParams(WindowManager.LayoutParams.MATCH_PARENT,
-				WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-				WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-						| WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION
-						| WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS
-						| WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR
-						| WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-				PixelFormat.TRANSLUCENT);
-
-		windowManager.addView(blackScreenOverlay, params);
-		isOverlayActive = true;
-		updateNotification();
-	}
-
-	private void hideBlackScreen() {
-		if (blackScreenOverlay != null) {
-			brightnessManager.restoreBrightness();
-			windowManager.removeView(blackScreenOverlay);
-			blackScreenOverlay = null;
-			floatingView.setVisibility(View.VISIBLE);
-			isOverlayActive = false;
-			updateNotification();
-		}
-	}
-
-	@Override
-	public int onStartCommand(Intent intent, int flags, int startId) {
-
-		// Broadcast that the service has started
-		Intent stateIntent = new Intent(ACTION_SERVICE_STATE_CHANGED);
-		stateIntent.putExtra("is_running", true);
-		LocalBroadcastManager.getInstance(this).sendBroadcast(stateIntent);
-
-		if (intent != null && intent.getAction() != null) {
-			switch (intent.getAction()) {
-			case ACTION_TOGGLE_OVERLAY:
-				// Toggle the overlay state
-				if (isOverlayActive) {
-					hideBlackScreen();
-					Toast.makeText(this, "Overlay hidden", Toast.LENGTH_SHORT).show();
-				} else {
-					if (appSettingsManager.getPreventTouch()) {
-						showUntouchableBlackScreen();
-					} else {
-						showTouchableBlackScreen();
-					}
-					Toast.makeText(this, "Overlay shown", Toast.LENGTH_SHORT).show();
-				}
-				break;
-
-			case ACTION_STOP_SERVICE:
-				// User clicked "Stop Service" - stop everything
-				stopSelf();
-				break;
-			}
-		}
-		return START_STICKY;
-	}
-
-	@Override
-	public void onDestroy() {
-		super.onDestroy();
-		// Broadcast that the service has stopped
-		Intent stateIntent = new Intent(ACTION_SERVICE_STATE_CHANGED);
-		stateIntent.putExtra("is_running", false);
-		LocalBroadcastManager.getInstance(this).sendBroadcast(stateIntent);
-
-		// Unregister the receiver
-		if (sizeChangeReceiver != null) {
-			unregisterReceiver(sizeChangeReceiver);
-		}
-
-		// Remove views
-		if (floatingView != null && windowManager != null) {
-			windowManager.removeView(floatingView);
-		}
-
-		// Stop being a foreground service
-		stopForeground(STOP_FOREGROUND_REMOVE);
-
-		Toast.makeText(this, "Service stopped", Toast.LENGTH_SHORT).show();
 	}
 
 }
