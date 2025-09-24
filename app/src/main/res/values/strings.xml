@@ -4,5 +4,7 @@
     <string name="text">this is the main blackscreen activity to be!</string>
     <string name="unlock">UNLOCK</string>
     <string name="unlock_description">tap here to unlock the screen</string>
+    <string name="start">Start</string>
+    <string name="stop">Stop</string>
 
 </resources>

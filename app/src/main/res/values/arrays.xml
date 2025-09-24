@@ -1,0 +1,57 @@
+<resources>
+
+    <string-array name="lock_type_entries">
+        <item>Black Overlay (Default)</item>
+        <item>Privacy Overlay</item>
+    </string-array>
+    <string-array name="lock_type_values">
+        <item>blackoverlay</item>
+        <item>privacyoverlay</item>
+    </string-array>
+    <string-array name="theme_entries">
+        <item>Dark</item>
+        <item>Light</item>
+        <item>System Default (Recommended)</item>
+    </string-array>
+    <string-array name="theme_values">
+        <item>dark</item>
+        <item>light</item>
+        <item>system_default</item>
+    </string-array>
+    <string-array name="taps_to_wake_entries">
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>4</item>
+    </string-array>
+    <string-array name="taps_to_wake_values">
+        <item>1</item>
+        <item>2</item>
+        <item>3</item>
+        <item>4</item>
+    </string-array>
+    <string-array name="floating_button_actions">
+        <item>Open Black Screen</item>
+        <item>Open Settings</item>
+        <item>Do nothing</item>
+    </string-array>
+    <string-array name="floating_button_action_values">
+        <item>open_black_screen</item>
+        <item>open_settings</item>
+        <item>none</item>
+        <item/>
+    </string-array>
+    <string-array name="language_entries">
+        <item>English</item>
+        <item>Spanish</item>
+        <item>French</item>
+        <item>German</item>
+    </string-array>
+    <string-array name="language_values">
+        <item>en</item>
+        <item>es</item>
+        <item>fr</item>
+        <item>de</item>
+    </string-array>
+
+</resources>

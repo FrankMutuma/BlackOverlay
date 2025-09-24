@@ -62,6 +62,7 @@
     <color name="md_theme_dark_outlineVariant">#49454F</color>
     <color name="md_theme_dark_scrim">#000000</color>
     <color name="pink_accent_color">#FF4081</color>
-    <color name="white">#FFFFFF</color>
+    <color name="Red">#FF0000</color>
+    <color name="semi_transparent_white">#80FFFFFF</color>
 
 </resources>
