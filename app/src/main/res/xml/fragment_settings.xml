@@ -4,7 +4,7 @@
     <Preference android:icon="@drawable/ic_star_white_24dp" android:key="settings_upgrade_pro" android:summary="Upgrade to Black Screen Pro and enjoy ad-free experience, premium features and priority support." android:title="Upgrade to Black Screen Pro" app:iconTint="@color/pink_accent_color" />
     <Preference android:layout="@layout/divider" android:selectable="false" />
 
-    <ListPreference android:defaultValue="blackoverlay" android:entries="@array/lock_type_entries" android:entryValues="@array/lock_type_values" android:icon="@drawable/ic_phone_android_white_24dp" android:key="lock_type" android:summary="Black Overlay (Default)" android:title="Type of Lock Screen" />
+    <ListPreference android:defaultValue="black_overlay" android:entries="@array/lock_type_entries" android:entryValues="@array/lock_type_values" android:icon="@drawable/ic_phone_android_white_24dp" android:key="lock_type" android:summary="Black Overlay (Default)" android:title="Type of Lock Screen" />
 
     <Preference android:layout="@layout/divider" android:selectable="false" />
 

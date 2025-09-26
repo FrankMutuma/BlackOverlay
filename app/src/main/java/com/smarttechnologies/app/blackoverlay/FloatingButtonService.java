@@ -36,7 +36,7 @@ import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
 public class FloatingButtonService extends Service implements ViewModelStoreOwner {
 	private WindowManager windowManager;
-	private AppPreferencesManager appSettingsManager;
+	private AppPreferencesManager appPreferencesManager;
 	private ViewModelStore viewModelStore;
 	private SharedViewModel sharedViewModel;
 	private ServiceLifecycleOwner serviceLifecycleOwner;
@@ -45,7 +45,7 @@ public class FloatingButtonService extends Service implements ViewModelStoreOwne
 	private BroadcastReceiver sizeChangeReceiver;
 
 	private View floatingView;
-	private View blackScreenOverlay;
+	private View overlay;
 	private TextView timeTextView;
 	private TextView dateDayTextView;
 
@@ -94,8 +94,8 @@ public class FloatingButtonService extends Service implements ViewModelStoreOwne
 		startForeground(1, buildNotification());
 
 		// 6. Get initial size and initialize other components
-		appSettingsManager = AppPreferencesManager.getInstance(this);
-		floatingButtonSize = appSettingsManager.getFloatingLockSize();
+		appPreferencesManager = AppPreferencesManager.getInstance(this);
+		floatingButtonSize = appPreferencesManager.getFloatingLockSize();
 
 		windowManager = (WindowManager) getSystemService(WINDOW_SERVICE);
 
@@ -145,11 +145,7 @@ public class FloatingButtonService extends Service implements ViewModelStoreOwne
 				if (isOverlayActive) {
 					hideBlackScreen();
 				} else {
-					if (appSettingsManager.getPreventTouch()) {
-						showUntouchableBlackScreen();
-					} else {
-						showTouchableBlackScreen();
-					}
+					startLockScreen();
 				}
 				break;
 			case ACTION_STOP_SERVICE:
@@ -174,11 +170,11 @@ public class FloatingButtonService extends Service implements ViewModelStoreOwne
 		if (floatingView != null && windowManager != null) {
 			windowManager.removeView(floatingView);
 		}
-		if (blackScreenOverlay != null) {
-			windowManager.removeView(blackScreenOverlay);
+		if (overlay != null) {
+			windowManager.removeView(overlay);
 		}
 
-		// Stop the timer
+		// Stop the timer..
 		clockUtils.stopTimer();
 
 		// Clear the ViewModelStore and notify the LifecycleOwner
@@ -230,14 +226,44 @@ public class FloatingButtonService extends Service implements ViewModelStoreOwne
 		});
 	}
 
-	private void showUntouchableBlackScreen() {
-		Log.d("overlay", "show untouchable");
+	public void startLockScreen() {
+
+		String lockType = appPreferencesManager.getLockType();
+
+		// Define constants for better readability and compile-time safety
+		final String VALUE_BLACK_OVERLAY = "black_overlay";
+		final String VALUE_PRIVACY_OVERLAY = "privacy_overlay";
+
+		switch (lockType) {
+
+		case VALUE_BLACK_OVERLAY:
+			System.out.println("Applying Full Black Overlay.");
+			// Your black overlay logic here...
+			showBlackOverlay();
+			break;
+
+		case VALUE_PRIVACY_OVERLAY:
+			System.out.println("Applying Privacy Overlay (Transparent/Dimmed).");
+			// Your privacy overlay logic here...
+			showPrivacyOverlay();
+			break;
+
+		default:
+			System.out.println("Unknown lock type. Defaulting to Black Overlay.");
+			// Fallback logic...
+			showBlackOverlay();
+			break;
+		}
+	}
+
+	private void showBlackOverlay() {
+		Log.d("overlay", "Black");
 
 		// Inflate and show the untouchable overlay
-		if (blackScreenOverlay == null) {
-			blackScreenOverlay = LayoutInflater.from(this).inflate(R.layout.black_screen_untouchable_layout, null);
-			timeTextView = blackScreenOverlay.findViewById(R.id.overlay_time);
-			dateDayTextView = blackScreenOverlay.findViewById(R.id.overlay_date_and_day);
+		if (overlay == null) {
+			overlay = LayoutInflater.from(this).inflate(R.layout.black_overlay, null);
+			timeTextView = overlay.findViewById(R.id.overlay_time);
+			dateDayTextView = overlay.findViewById(R.id.overlay_date_and_day);
 		}
 
 		// Set up window manager params and add view
@@ -261,11 +287,11 @@ public class FloatingButtonService extends Service implements ViewModelStoreOwne
 		}
 
 		// Also set the view itself to be fullscreen
-		blackScreenOverlay.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE
+		overlay.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE
 				| View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
 
-		// Re-add the touch listener to the blackScreenOverlay
-		blackScreenOverlay.setOnTouchListener(new View.OnTouchListener() {
+		// Re-add the touch listener to the overlay
+		overlay.setOnTouchListener(new View.OnTouchListener() {
 			private static final int TAP_COUNT_TO_UNLOCK = 3;
 			private static final long TAP_TIMEOUT_MS = 300;
 			private long lastTapTime = 0;
@@ -293,13 +319,13 @@ public class FloatingButtonService extends Service implements ViewModelStoreOwne
 			}
 		});
 
-		windowManager.addView(blackScreenOverlay, params);
+		windowManager.addView(overlay, params);
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
-			blackScreenOverlay.getWindowInsetsController()
+			overlay.getWindowInsetsController()
 					.setSystemBarsBehavior(WindowInsetsController.BEHAVIOR_SHOW_TRANSIENT_BARS_BY_SWIPE);
 
 			// Hide system bars
-			blackScreenOverlay.getWindowInsetsController().hide(WindowInsets.Type.systemBars());
+			overlay.getWindowInsetsController().hide(WindowInsets.Type.systemBars());
 		}
 
 		floatingView.setVisibility(View.GONE);
@@ -309,11 +335,11 @@ public class FloatingButtonService extends Service implements ViewModelStoreOwne
 		// The LiveData observers are already running, so they will handle the time and date updates.
 	}
 
-	private void showTouchableBlackScreen() {
-		Log.d("overlay", "show touchable");
+	private void showPrivacyOverlay() {
+		Log.d("overlay", "Privacy");
 		// Inflate and show the touchable overlay
-		if (blackScreenOverlay == null) {
-			blackScreenOverlay = LayoutInflater.from(this).inflate(R.layout.black_screen_touchable_layout, null);
+		if (overlay == null) {
+			overlay = LayoutInflater.from(this).inflate(R.layout.privacy_overlay, null);
 		}
 		// Set up window manager params and add view
 		WindowManager.LayoutParams params = new WindowManager.LayoutParams(WindowManager.LayoutParams.MATCH_PARENT,
@@ -324,7 +350,7 @@ public class FloatingButtonService extends Service implements ViewModelStoreOwne
 						| WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR
 						| WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
 				PixelFormat.TRANSLUCENT);
-		windowManager.addView(blackScreenOverlay, params);
+		windowManager.addView(overlay, params);
 		floatingView.setVisibility(View.GONE);
 		isOverlayActive = true;
 		updateNotification();
@@ -332,10 +358,10 @@ public class FloatingButtonService extends Service implements ViewModelStoreOwne
 
 	private void hideBlackScreen() {
 		// Remove the overlay and restore state
-		if (blackScreenOverlay != null) {
+		if (overlay != null) {
 			brightnessManager.restoreBrightness();
-			windowManager.removeView(blackScreenOverlay);
-			blackScreenOverlay = null;
+			windowManager.removeView(overlay);
+			overlay = null;
 			floatingView.setVisibility(View.VISIBLE);
 			isOverlayActive = false;
 			updateNotification();
@@ -408,12 +434,8 @@ public class FloatingButtonService extends Service implements ViewModelStoreOwne
 					long clickDuration = System.currentTimeMillis() - startClickTime;
 					if (clickDuration < CLICK_ACTION_THRESHOLD) {
 						//This is a click event
-						if (blackScreenOverlay == null) {
-							if (appSettingsManager.getPreventTouch()) {
-								showUntouchableBlackScreen();
-							} else {
-								showTouchableBlackScreen();
-							}
+						if (overlay == null) {
+							startLockScreen();
 						} else {
 							hideBlackScreen();
 						}
