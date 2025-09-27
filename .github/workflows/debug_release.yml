@@ -1,0 +1,44 @@
+name: Automated Debug APK Build & Artifact
+
+on:
+  push:
+    branches:
+      - main # Trigger on pushes to the main branch
+
+jobs:
+  build_and_upload_debug:
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout Repository
+        uses: actions/checkout@v4
+        
+      - name: Set up JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: 'temurin'
+          java-version: '17' 
+          
+      # Make the Gradle wrapper executable
+      - name: Grant execute permission for gradlew
+        run: chmod +x gradlew
+        
+      - name: Setup Gradle Build Cache
+        uses: gradle/actions/setup-gradle@v3
+        
+      # 1. BUILD: Use 'assembleDebug' since it does NOT require a release keystore
+      - name: Assemble Debug APK
+        run: ./gradlew assembleDebug
+        
+      # 2. ARTIFACT: Upload the APK for download within the workflow summary
+      - name: Upload Debug APK Artifact
+        uses: actions/upload-artifact@v4
+        with:
+          # Note the path change: 'debug' flavor output
+          name: debug-app-apk
+          path: app/build/outputs/apk/debug/app-debug.apk 
+          retention-days: 7 
+
+      # NOTE: The "Create GitHub Release" step is REMOVED
+      # because debug builds should typically not create formal releases.
+      
