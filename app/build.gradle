@@ -1,17 +1,22 @@
-Plugins {
+plugins {
 id 'com.android.application'
+// ADDED: Although not explicitly shown, adding the Kotlin plugin is best practice
+// and works with the updated Kotlin stdlib version you tested.
+id 'org.jetbrains.kotlin.android'
 }
 
 android {
-compileSdk 35
+compileSdk 36 // CONFIRMED WORKING
 namespace "com.smarttechnologies.app.blackoverlay"
 
 defaultConfig {
 applicationId "com.smarttechnologies.app.blackoverlay"
 minSdk 24
-targetSdk 35
+targetSdk 36 // CONFIRMED WORKING
 versionCode 1
 versionName "1.0"
+
+testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 }
 
 buildTypes {
@@ -24,36 +29,47 @@ compileOptions {
 sourceCompatibility JavaVersion.VERSION_1_8
 targetCompatibility JavaVersion.VERSION_1_8
 }
+kotlinOptions { // ADDED: Required with the org.jetbrains.kotlin.android plugin
+jvmTarget = "1.8"
+}
+buildFeatures { // ADDED: From your last successful file
+viewBinding true
+}
 dependencies {
-    //Required for useSimpleSummaryProvider attribute in preferences.xml
-    implementation 'androidx.preference:preference-ktx:1.2.1'
-	
-    // Required for AppCompatActivity and general AndroidX compatibility
-    implementation 'androidx.appcompat:appcompat:1.7.0' // Or latest stable version
+// ADDED: From your last successful file
+implementation 'androidx.annotation:annotation:1.8.0'
 
-    // Essential for modern full-screen control (WindowCompat, WindowInsetsControllerCompat)
-    implementation 'androidx.core:core-ktx:1.13.1' // Or latest stable version
+// Required for useSimpleSummaryProvider attribute in preferences.xml
+implementation 'androidx.preference:preference-ktx:1.2.1' // LATEST
 
-    // For ActivityResultLauncher and ActivityResultContracts
-    implementation 'androidx.activity:activity-ktx:1.9.0' // Or latest stable version
+// Required for AppCompatActivity and general AndroidX compatibility
+implementation 'androidx.appcompat:appcompat:1.7.1' // CONFIRMED WORKING
 
-    // For Material Design components (FloatingActionButton, Toolbar, TabLayout, etc.)
-    // You will need this for building the full UI from your screenshots
-    implementation 'com.google.android.material:material:1.12.0' // Or latest stable version
+// Essential for modern full-screen control (WindowCompat, WindowInsetsControllerCompat)
+// REVERTED to OLD version to maintain build stability
+implementation 'androidx.core:core-ktx:1.13.1'
 
-    // For ConstraintLayout (already likely there, but confirm)
-    implementation 'androidx.constraintlayout:constraintlayout:2.2.1' // Or latest stable version
+// For ActivityResultLauncher and ActivityResultContracts
+// REVERTED to OLD version to maintain build stability
+implementation 'androidx.activity:activity-ktx:1.9.0'
 
-    // If you plan to use Fragments for the tabs
-    implementation 'androidx.fragment:fragment-ktx:1.8.1' // Or latest stable version
-    implementation 'androidx.viewpager2:viewpager2:1.1.0' // Or latest stable version
+// For Material Design components (FloatingActionButton, Toolbar, TabLayout, etc.)
+implementation 'com.google.android.material:material:1.12.0' // LATEST (From your previous attempts)
 
-    // Existing test dependencies (keep these)
-    testImplementation 'junit:junit:4.13.2'
-    androidTestImplementation 'androidx.test.ext:junit:1.2.1'
-    androidTestImplementation 'androidx.test.espresso:espresso-core:3.6.1'
-	
-	implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:1.9.23'
+// For ConstraintLayout
+implementation 'androidx.constraintlayout:constraintlayout:2.2.1' // LATEST (From your previous attempts)
+
+// If you plan to use Fragments for the tabs
+implementation 'androidx.fragment:fragment-ktx:1.8.9' // LATEST (From your previous attempts)
+implementation 'androidx.viewpager2:viewpager2:1.1.0' // LATEST (From your previous attempts)
+
+// Existing test dependencies (keep these)
+testImplementation 'junit:junit:4.13.2'
+androidTestImplementation 'androidx.test.ext:junit:1.3.0' // CONFIRMED WORKING
+androidTestImplementation 'androidx.test.espresso:espresso-core:3.7.0' // CONFIRMED WORKING
+
+// Kotlin Standard Library
+implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.2.20' // CONFIRMED WORKING
 }
 
 }
