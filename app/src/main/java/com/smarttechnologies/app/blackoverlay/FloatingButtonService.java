@@ -28,6 +28,7 @@ import android.widget.ImageView;
 import android.widget.TextView;
 import android.widget.Toast;
 import androidx.annotation.NonNull;
+import androidx.constraintlayout.widget.ConstraintLayout;
 import androidx.lifecycle.Observer;
 import androidx.lifecycle.ViewModelProvider;
 import androidx.lifecycle.ViewModelStore;
@@ -259,11 +260,15 @@ public class FloatingButtonService extends Service implements ViewModelStoreOwne
 	private void showBlackOverlay() {
 		Log.d("overlay", "Black");
 
-		// Inflate and show the untouchable overlay
 		if (overlay == null) {
 			overlay = LayoutInflater.from(this).inflate(R.layout.black_overlay, null);
 			timeTextView = overlay.findViewById(R.id.overlay_time);
 			dateDayTextView = overlay.findViewById(R.id.overlay_date_and_day);
+
+			// Add top margin programmatically
+			ConstraintLayout.LayoutParams params = (ConstraintLayout.LayoutParams) timeTextView.getLayoutParams();
+			params.topMargin = getResources().getDimensionPixelSize(R.dimen.overlay_top_margin); // Create dimen resource
+			timeTextView.setLayoutParams(params);
 		}
 
 		// Set up window manager params and add view
@@ -287,8 +292,8 @@ public class FloatingButtonService extends Service implements ViewModelStoreOwne
 		}
 
 		// Also set the view itself to be fullscreen
-		overlay.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE
-				| View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION | View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
+		overlay.setSystemUiVisibility(View.SYSTEM_UI_FLAG_LAYOUT_STABLE | View.SYSTEM_UI_FLAG_LAYOUT_HIDE_NAVIGATION
+				| View.SYSTEM_UI_FLAG_LAYOUT_FULLSCREEN);
 
 		// Re-add the touch listener to the overlay
 		overlay.setOnTouchListener(new View.OnTouchListener() {
