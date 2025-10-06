@@ -25,6 +25,7 @@ public class AppPreferencesManager {
 	private static final int DEFAULT_FLOATING_LOCK_SIZE = 60; // Default size in dp
 	private static final int MIN_FLOATING_LOCK_SIZE = 10; // Minimum size in dp
 	private static final int MAX_FLOATING_LOCK_SIZE = 100; // Maximum size in dp
+	//overlay management
 
 	// --- Settings Preference Keys ---
 
@@ -42,6 +43,9 @@ public class AppPreferencesManager {
 	public static final String KEY_QUICK_TILES_INSTANT_BLACKOUT = "quick_tiles_instant_blackout";
 	public static final String KEY_DISABLE_BATTERY_OPTIMIZATION = "disable_battery_optimization";
 	public static final String KEY_APP_LANGUAGE = "app_language";
+
+
+
 
 	private AppPreferencesManager(Context context) {
 		//sharedPreferences = context.getApplicationContext().getSharedPreferences(PREF_NAME, Context.MODE_PRIVATE);

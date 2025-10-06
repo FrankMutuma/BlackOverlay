@@ -3,129 +3,101 @@ package com.smarttechnologies.app.blackoverlay;
 import android.os.Handler;
 import android.os.Looper;
 import android.util.Log;
-import android.widget.TextView;
-import androidx.annotation.NonNull;
-import androidx.annotation.Nullable;
+import androidx.lifecycle.LiveData;
+import androidx.lifecycle.MutableLiveData;
 import java.text.SimpleDateFormat;
 import java.util.Date;
-import java.util.List;
 import java.util.Locale;
-import java.util.concurrent.CopyOnWriteArrayList;
 
-/**
-* A utility class to manage a global time-keeping timer. It can update
-* TextViews and/or push data to a SharedViewModel in a thread-safe manner.
-*/
-public final class ClockUtils {
+public class ClockUtils {
+	private static final String TAG = "ClockUtils";
 
-	private final Handler handler;
-	private boolean isTimerRunning = false;
-	private String currentTime;
-	private String currentDate;
+	// 1. LiveData is now owned by the Singleton
+	private static final MutableLiveData<String> sTimeLiveData = new MutableLiveData<>();
+	private static final MutableLiveData<String> sDateDayLiveData = new MutableLiveData<>();
 
-	// Use thread-safe collections since updates happen on UI thread but modifications can happen from any thread
-	private final List<TextView> timeTextViews = new CopyOnWriteArrayList<>();
-	private final List<TextView> dateTextViews = new CopyOnWriteArrayList<>();
+	// 2. The SharedViewModel reference is no longer needed
+	// private static SharedViewModel sSharedViewModel;
 
-	@Nullable
-	private final SharedViewModel sharedViewModel;
+	private static final Handler sHandler = new Handler(Looper.getMainLooper());
+	private static boolean sIsTimerRunning = false;
+	private static int sObserverCount = 0;
 
-	public ClockUtils(@Nullable SharedViewModel viewModel) {
-		handler = new Handler(Looper.getMainLooper());
-		this.sharedViewModel = viewModel;
-	}
+	// Formatting constants (moved from SharedViewModel)
+	private static final SimpleDateFormat TIME_FORMAT = new SimpleDateFormat("h:mm", Locale.getDefault());
+	private static final SimpleDateFormat DATE_DAY_FORMAT = new SimpleDateFormat("EEEE, MMMM d", Locale.getDefault());
 
-	private final Runnable updateTimeRunnable = new Runnable() {
+	// Runnable to update time every second
+	private static final Runnable sTimeUpdaterRunnable = new Runnable() {
 		@Override
 		public void run() {
-			try {
-				// Get current time and date strings
-				SimpleDateFormat timeFormat = new SimpleDateFormat("HH:mm", Locale.getDefault());
-				String time = timeFormat.format(new Date());
+			Date now = new Date();
+			// 3. Update the static LiveData directly
+			sTimeLiveData.setValue(TIME_FORMAT.format(now));
+			sDateDayLiveData.setValue(DATE_DAY_FORMAT.format(now));
 
-				SimpleDateFormat dateFormat = new SimpleDateFormat("EEE, MMM dd", Locale.getDefault());
-				String date = dateFormat.format(new Date());
-
-				// Update the class fields
-				currentTime = time;
-				currentDate = date;
-
-				// Update the ViewModel if it exists
-				if (sharedViewModel != null) {
-					sharedViewModel.setCurrentTime(currentTime);
-					sharedViewModel.setCurrentDate(currentDate);
-				}
-			} catch (Exception e) {
-				Log.e("ClockUtils", "Error updating time: " + e.getMessage(), e);
-			} finally {
-				// Reschedule the next run if timer is still running
-				if (isTimerRunning) {
-					handler.postDelayed(this, 1000);
-				}
-			}
+			sHandler.postDelayed(this, 1000); // Repeat every second
 		}
 	};
 
-	/**
-	* Starts the time update timer.
-	*/
-	public void startTimer() {
-		if (!isTimerRunning) {
-			isTimerRunning = true;
-			// Update immediately and then schedule periodic updates
-			handler.post(updateTimeRunnable);
+	// No longer takes SharedViewModel, only checks if LiveData is available.
+	public static void initialize() {
+		Log.i(TAG, "ClockUtils instance created.");
+
+		// This check is mainly for robust logging/debugging, LiveData is static.
+		if (sTimeLiveData.getValue() == null) {
+			Log.i(TAG, "Singleton successfully initialized. Initializing time.");
+			// Set initial time immediately
+			Date now = new Date();
+			sTimeLiveData.setValue(TIME_FORMAT.format(now));
+			sDateDayLiveData.setValue(DATE_DAY_FORMAT.format(now));
+		} else {
+			Log.w(TAG, "Attempted to re-initialize ClockUtils. Skipping time initialization.");
 		}
 	}
 
-	/**
-	* Stops the time update timer and clears all registered TextViews.
-	*/
-	public void stopTimer() {
-		if (isTimerRunning) {
-			isTimerRunning = false;
-			handler.removeCallbacks(updateTimeRunnable);
+	public static LiveData<String> getTimeLiveData() {
+		return sTimeLiveData;
+	}
 
-			currentTime = null;
-			currentDate = null;
+	public static LiveData<String> getDateDayLiveData() {
+		return sDateDayLiveData;
+	}
 
-			// Clear ViewModel values if needed
-			if (sharedViewModel != null) {
-				sharedViewModel.setCurrentTime(null);
-				sharedViewModel.setCurrentDate(null);
-			}
+	public static void registerObserver() {
+		sObserverCount++;
+		Log.d(TAG, "Observer registered. Count: " + sObserverCount);
+
+		if (!sIsTimerRunning && sObserverCount > 0) {
+			startTimer();
 		}
 	}
 
-	/**
-	* Gets the current time string
-	*/
-	@Nullable
-	public String getCurrentTime() {
-		return currentTime;
-	}
-
-	/**
-	* Gets the current date string
-	*/
-	@Nullable
-	public String getCurrentDate() {
-		return currentDate;
-	}
-
-	/**
-	* Checks if the timer is currently running
-	*/
-	public boolean isTimerRunning() {
-		return isTimerRunning;
-	}
-
-	/**
-	* Force an immediate update of the time and date
-	*/
-	public void updateImmediately() {
-		if (isTimerRunning) {
-			handler.removeCallbacks(updateTimeRunnable);
-			handler.post(updateTimeRunnable);
+	public static void unregisterObserver() {
+		if (sObserverCount > 0) {
+			sObserverCount--;
 		}
+		Log.d(TAG, "Observer unregistered. Count: " + sObserverCount);
+
+		if (sIsTimerRunning && sObserverCount == 0) {
+			stopTimer();
+		}
+	}
+
+	private static void startTimer() {
+		sIsTimerRunning = true;
+		sHandler.post(sTimeUpdaterRunnable);
+		Log.i(TAG, "Timer running (REF-COUNTED)");
+	}
+
+	private static void stopTimer() {
+		sHandler.removeCallbacks(sTimeUpdaterRunnable);
+		sIsTimerRunning = false;
+		Log.i(TAG, "Timer stopped (REF-COUNTED)");
+	}
+
+	// Helper to log the current timer status
+	public static boolean isTimerActive() {
+		return sIsTimerRunning;
 	}
 }

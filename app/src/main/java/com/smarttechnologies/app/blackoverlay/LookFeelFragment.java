@@ -4,7 +4,6 @@ import android.content.Intent;
 import android.os.Bundle;
 import android.os.Handler;
 import android.os.Looper;
-import android.telephony.DataFailCause;
 import android.view.LayoutInflater;
 import android.view.View;
 import android.view.ViewGroup;
@@ -18,11 +17,10 @@ import androidx.annotation.NonNull;
 import androidx.annotation.Nullable;
 import androidx.cardview.widget.CardView;
 import androidx.fragment.app.Fragment;
-import androidx.lifecycle.ViewModelProvider;
+import androidx.localbroadcastmanager.content.LocalBroadcastManager; // <-- NEW IMPORT
 
 public class LookFeelFragment extends Fragment {
 	private AppPreferencesManager appSettingsManager;
-	private SharedViewModel sharedViewModel;
 	private SeekBar seekBarLockSize;
 	private Switch switchMediaControls;
 	private ImageView previewLock1, previewLock2, previewLock3;
@@ -45,9 +43,8 @@ public class LookFeelFragment extends Fragment {
 	public void onViewCreated(@NonNull View view, @Nullable Bundle savedInstanceState) {
 		super.onViewCreated(view, savedInstanceState);
 
-		//initialize AppPreferencesManager and SharedViewModel
+		//initialize AppPreferencesManager
 		appSettingsManager = AppPreferencesManager.getInstance(requireContext());
-		sharedViewModel = new ViewModelProvider(requireActivity()).get(SharedViewModel.class);
 
 		// Find the new UI components
 		//initialize the textviews
@@ -74,8 +71,10 @@ public class LookFeelFragment extends Fragment {
 
 		Switch switchNotifications = view.findViewById(R.id.switchNotifications);
 		CheckBox checkBoxBatteryPercentage = view.findViewById(R.id.checkBoxBatteryPercentage);
-		//observe sharedviewmodel Data
+
+		// Observe ClockUtils LiveData directly
 		ObserveLiveData();
+
 		// Set up listeners for the Switches
 		// 1. LOAD the saved state when the fragment starts
 		boolean savedMediaControlsState = appSettingsManager.getMediaControlsEnabled();
@@ -180,7 +179,8 @@ public class LookFeelFragment extends Fragment {
 	}
 
 	private void ObserveLiveData() {
-		sharedViewModel.getCurrentTime().observe(getViewLifecycleOwner(), newTime -> {
+		// Observe the static time LiveData from ClockUtils
+		ClockUtils.getTimeLiveData().observe(getViewLifecycleOwner(), newTime -> {
 			// This code runs when the LiveData changes
 			txtclock1.setText(newTime);
 			txtclock2.setText(newTime);
@@ -223,7 +223,8 @@ public class LookFeelFragment extends Fragment {
 		// Send a broadcast to the service to update the floating button size
 		Intent intent = new Intent("FLOATING_LOCK_SIZE_CHANGED");
 		intent.putExtra("size", newSize);
-		requireActivity().sendBroadcast(intent);
+		// Use LocalBroadcastManager for secure, intra-application communication
+		LocalBroadcastManager.getInstance(requireContext()).sendBroadcast(intent);
 	}
 
 	@Override

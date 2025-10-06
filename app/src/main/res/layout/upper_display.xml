@@ -43,7 +43,7 @@
             android:background="@drawable/rounded_rect_border_white"/>
 
         <TextView
-            android:id="@+id/activity_main_time"
+            android:id="@+id/main_time"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             app:layout_constraintEnd_toEndOf="@id/preview_area"
@@ -56,13 +56,13 @@
             android:textStyle="bold" />
 
         <TextView
-            android:id="@+id/activity_main_date"
+            android:id="@+id/main_date_and_day"
             android:layout_width="wrap_content"
             android:layout_height="wrap_content"
             android:layout_marginTop="8dp"
             app:layout_constraintEnd_toEndOf="@id/preview_area"
             app:layout_constraintStart_toStartOf="@id/preview_area"
-            app:layout_constraintTop_toBottomOf="@id/activity_main_time"
+            app:layout_constraintTop_toBottomOf="@id/main_time"
             android:text=""
             android:textColor="@android:color/white"
             android:textSize="18sp" />

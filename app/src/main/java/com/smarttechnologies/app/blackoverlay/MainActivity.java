@@ -1,217 +1,204 @@
 package com.smarttechnologies.app.blackoverlay;
 
-import android.app.ActivityManager;
-import android.content.BroadcastReceiver;
 import android.content.Context;
+import android.content.Intent;
 import android.content.IntentFilter;
 import android.os.Bundle;
-import android.os.Handler;
-import android.os.Looper;
 import android.util.Log;
 import android.view.View;
 import android.widget.TextView;
 import android.widget.Toast;
+import android.os.Build;
 import androidx.appcompat.app.AppCompatActivity;
-import androidx.cardview.widget.CardView;
-import androidx.fragment.app.Fragment;
-import androidx.lifecycle.Observer;
-import androidx.lifecycle.ViewModelProvider;
-import androidx.localbroadcastmanager.content.LocalBroadcastManager;
+import androidx.lifecycle.MutableLiveData;
 import androidx.viewpager2.widget.ViewPager2;
-import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton;
-import com.google.android.material.floatingactionbutton.FloatingActionButton;
 import com.google.android.material.tabs.TabLayout;
+import com.google.android.material.floatingactionbutton.ExtendedFloatingActionButton;
 import com.google.android.material.tabs.TabLayoutMediator;
-import android.content.Intent;
-import android.net.Uri;
-import android.provider.Settings;
-import androidx.activity.result.ActivityResultLauncher;
-import androidx.activity.result.contract.ActivityResultContracts;
-import java.text.SimpleDateFormat;
-import java.util.Date;
-import java.util.Arrays;
-import java.util.List;
-import java.util.Locale;
 
+// Implementing the callback for permission results
 public class MainActivity extends AppCompatActivity implements PermissionManager.PermissionCallback {
 
+	private static final String TAG = "MainActivity";
+
+	// Architecture Components (ClockUtils is NOT an instance here)
 	private ExtendedFloatingActionButton mainStartButton;
 	private PermissionManager permissionManager;
 	private AppPreferencesManager prefsManager;
-	private SharedViewModel sharedViewModel;
-	private BroadcastReceiver serviceStateReceiver;
-	private ViewPager2 viewPager;
-	private ClockUtils clockUtils;
-	//declare time and date textviews
-	private TextView dateDayTextView;
-	private TextView timeTextView;
 
-	// New member variable to track the service's state
-	private boolean isServiceRunning = false;
+	// UI Elements
+	private TextView timeTextView;
+	private TextView dateDayTextView;
+	private ViewPager2 viewPager;
+
+	// State Tracking
+	private boolean isServiceRunning;
 
 	@Override
 	protected void onCreate(Bundle savedInstanceState) {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.activity_main);
+
+		// 1. Initialize Architecture Components (ClockUtils is static, so no instance)
 		prefsManager = AppPreferencesManager.getInstance(this);
-		// Initialize the PermissionManager with this activity and callback
 		permissionManager = new PermissionManager(this, this);
-		// Get the shared ViewModel instance
-		sharedViewModel = new ViewModelProvider(this).get(SharedViewModel.class);
-		//initialize ClockUtils
-		clockUtils = new ClockUtils(sharedViewModel);
-
+		// 2. Setup UI, Listeners, and Navigation
 		setupUI();
-		observeViewModel();
-		setupReceiver();
 
-		// Check and request permissions as the first order of business
+		// 3. Setup Observers for LiveData (using static ClockUtils methods)
+		observeLiveData();
+
+		// 4. Initial Permission Check (Starts the flow)
 		permissionManager.checkAndRequestPermissions();
-
 	}
 
 	private void setupUI() {
-		// Find the ViewPager2 and TabLayout from the layout file
 		viewPager = findViewById(R.id.view_pager);
 		TabLayout tabLayout = findViewById(R.id.tab_layout);
 		mainStartButton = findViewById(R.id.fab_start);
-		// Create an instance of our custom ViewPagerAdapter
-		ViewPagerAdapter adapter = new ViewPagerAdapter(this);
-		//initialize date and time text views
-		dateDayTextView = findViewById(R.id.activity_main_date);
-		timeTextView = findViewById(R.id.activity_main_time);
+		dateDayTextView = findViewById(R.id.main_date_and_day); // Using ID from your initial file
+		timeTextView = findViewById(R.id.main_time); // Using ID from your initial file
 
-		// Set the adapter on the ViewPager2
+		// --- ViewPager2 and TabLayout Setup ---
+		ViewPagerAdapter adapter = new ViewPagerAdapter(this); // Assuming this class exists
 		viewPager.setAdapter(adapter);
 
 		// Connect the TabLayout to the ViewPager2 and set tab titles
 		new TabLayoutMediator(tabLayout, viewPager, (tab, position) -> {
 			if (position == 0) {
-				tab.setText("Look & Feel");
+				tab.setText(getString(R.string.tab_look_feel));
 			} else {
-				tab.setText("Settings");
+				tab.setText(getString(R.string.tab_settings));
 			}
 		}).attach();
-		//Start updating time
-		//clockUtils.startUpdatingTime(timeTextView,dateDayTextView);
 
 		// Set the FAB click listener
-		mainStartButton.setOnClickListener(v -> {
-			// Check the current state of the service to decide whether to start or stop it
-			if (isServiceRunning) {
-				// If the service is running, stop it
-				stopFloatingService();
+		if (mainStartButton != null) {
+			updateMainFabUI();
 
-			} else {
-				// If the service is not running, start it
-				// Check if we have at least overlay permission before starting service
-				if (permissionManager.hasOverlayPermission()) {
-					startFloatingService();
+			mainStartButton.setOnClickListener(v -> {
+				if (isServiceRunning) {
+					stopFloatingService();
 				} else {
-					Toast.makeText(this, "Please grant overlay permission first", Toast.LENGTH_SHORT).show();
-					permissionManager.checkAndRequestPermissions();
-				}
-			}
-		});
-	}
-
-	private void setupReceiver() {
-		serviceStateReceiver = new BroadcastReceiver() {
-			@Override
-			public void onReceive(Context context, Intent intent) {
-				if (FloatingButtonService.ACTION_SERVICE_STATE_CHANGED.equals(intent.getAction())) {
-					boolean isRunning = intent.getBooleanExtra("is_running", false);
-					isServiceRunning = isRunning; // Update the state variable
-					if (isRunning) {
-						// Access the member variable here
-						mainStartButton.setText(R.string.stop);
+					if (permissionManager.hasOverlayPermission()) {
+						startFloatingService();
 					} else {
-						// Access the member variable here
-						mainStartButton.setText(R.string.start);
+						Toast.makeText(this, getString(R.string.permission_required_overlay), Toast.LENGTH_SHORT)
+								.show();
+						permissionManager.checkAndRequestPermissions();
 					}
 				}
-			}
-		};
+			});
+		}
 	}
 
-	private void observeViewModel() {
-		// Observer for the time TextView
-		sharedViewModel.getCurrentTime().observe(this, new Observer<String>() {
-			@Override
-			public void onChanged(String s) {
-				timeTextView.setText(s);
-				timeTextView.setContentDescription("Current time is " + s);
+	/**
+	 * Links the UI TextViews to the static LiveData in ClockUtils.
+	 */
+	private void observeLiveData() {
+		Log.i(TAG, "Observe overlay activity state");
+		SharedViewModel.getOverlayServiceRunningStatus().observe(this, status -> {
+			isServiceRunning = status;
+			updateMainFabUI();
+		});
+
+		Log.i(TAG, "Observe static clock LiveData called");
+
+		// Observe the static time LiveData from ClockUtils
+		ClockUtils.getTimeLiveData().observe(this, newTime -> {
+			if (timeTextView != null) {
+				timeTextView.setText(newTime);
+				timeTextView.setContentDescription("Current time is " + newTime);
 			}
 		});
 
-		// Observer for the date TextView
-		sharedViewModel.getCurrentDate().observe(this, new Observer<String>() {
-			@Override
-			public void onChanged(String s) {
-				dateDayTextView.setText(s);
-				dateDayTextView.setContentDescription("Today's date is " + s);
+		// Observe the static date LiveData from ClockUtils
+		ClockUtils.getDateDayLiveData().observe(this, newDate -> {
+			if (dateDayTextView != null) {
+				dateDayTextView.setText(newDate);
+				dateDayTextView.setContentDescription("Today's date is " + newDate);
 			}
 		});
 	}
 
-	private void stopUpdatingTime() {
-		clockUtils.stopTimer();
+	/**
+	 * Updates the FAB text and icon based on the actual service running state.
+	 */
+	private void updateMainFabUI() {
+		if (mainStartButton == null)
+			return;
+
+		if (isServiceRunning) {
+			mainStartButton.setText(getString(R.string.stop));
+			mainStartButton.setIconResource(R.drawable.ic_stop_white_24dp);
+			mainStartButton.setContentDescription(getString(R.string.stop));
+		} else {
+			mainStartButton.setText(getString(R.string.start));
+			mainStartButton.setIconResource(R.drawable.ic_play_arrow_white_24dp);
+			mainStartButton.setContentDescription(getString(R.string.start));
+		}
+	}
+
+	//--- Service Control Methods ---//
+
+	private void startFloatingService() {
+		Intent serviceIntent = new Intent(this, FloatingButtonService.class);
+		try {
+			startForegroundService(serviceIntent);
+			Toast.makeText(this, getString(R.string.service_started_toast), Toast.LENGTH_SHORT).show();
+
+		} catch (Exception e) {
+			Log.e(TAG, "Error Occured While Starting the Floating Button " + e);
+		}
+	}
+
+	private void stopFloatingService() {
+		Intent serviceIntent = new Intent(this, FloatingButtonService.class);
+
+		try {
+			stopService(serviceIntent);
+			Toast.makeText(this, getString(R.string.service_stopped_toast), Toast.LENGTH_SHORT).show();
+		} catch (Exception e) {
+			Log.e(TAG, "Error Occured While Hidding the Floating Button " + e);
+		}
 	}
 
 	//--- PermissionCallback Methods ---//
+
 	@Override
 	public void onAllPermissionsGranted() {
-		// Both permissions are granted!
-		Toast.makeText(this, "All permissions granted. Full functionality enabled.", Toast.LENGTH_SHORT).show();
-		// You can automatically start the service or enable UI elements
+		Toast.makeText(this, getString(R.string.permissions_all_granted), Toast.LENGTH_SHORT).show();
 		startFloatingService();
 	}
 
 	@Override
 	public void onEssentialPermissionGranted() {
-		// Only overlay permission is granted, but that's enough for basic functionality
-		Toast.makeText(this, "Essential permissions granted. Starting with basic features.", Toast.LENGTH_SHORT).show();
+		Toast.makeText(this, getString(R.string.permissions_essential_granted), Toast.LENGTH_SHORT).show();
 		startFloatingService();
 	}
 
 	@Override
 	public void onPermissionsDenied() {
-		// User denied essential overlay permission
-		Toast.makeText(this, "Cannot function without overlay permission.", Toast.LENGTH_LONG).show();
-		// You might want to finish the activity or show a message
-	}
-	//--- End PermissionCallback ---//
-
-	private void startFloatingService() {
-		Intent serviceIntent = new Intent(this, FloatingButtonService.class);
-		startService(serviceIntent);
-		Toast.makeText(this, "Service starting...", Toast.LENGTH_SHORT).show();
-		// finish(); // Optional: close the activity
+		Toast.makeText(this, getString(R.string.permissions_denied_overlay), Toast.LENGTH_LONG).show();
 	}
 
-	private void stopFloatingService() {
-		Intent serviceIntent = new Intent(this, FloatingButtonService.class);
-		stopService(serviceIntent);
-		Toast.makeText(this, "Service stopping...", Toast.LENGTH_SHORT).show();
-	}
+	//--- Activity Lifecycle Methods ---//
 
 	@Override
 	protected void onResume() {
 		super.onResume();
-		//Start updating time
-		clockUtils.startTimer();
-		// Register the receiver
-		LocalBroadcastManager.getInstance(this).registerReceiver(serviceStateReceiver,
-				new IntentFilter(FloatingButtonService.ACTION_SERVICE_STATE_CHANGED));
+
+		// RESTORED: Using the static observer registration for ClockUtils
+		ClockUtils.registerObserver();
+
+		// check service status
+		updateMainFabUI();
 	}
 
 	@Override
 	protected void onPause() {
+		// RESTORED: Using the static observer unregistration for ClockUtils
+		ClockUtils.unregisterObserver();
 		super.onPause();
-		//Stop updating time
-		clockUtils.stopTimer();
-		// Unregister the receiver
-		LocalBroadcastManager.getInstance(this).unregisterReceiver(serviceStateReceiver);
 	}
-
 }

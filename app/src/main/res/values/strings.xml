@@ -1,10 +1,27 @@
 <resources>
 
-    <string name="app_name">Black Overlay </string>
+    <string name="app_name">Black Overlay</string>
     <string name="text">this is the main blackscreen activity to be!</string>
     <string name="unlock">UNLOCK</string>
     <string name="unlock_description">tap here to unlock the screen</string>
     <string name="start">Start</string>
     <string name="stop">Stop</string>
+    <string name="tab_look_feel">Look &amp; Feel</string>
+    <string name="tab_settings">Settings</string>
+    <string name="notification_title">Black Overlay Service</string>
+    <string name="notification_status_active">Overlay is currently visible</string>
+    <string name="notification_status_hidden">Floating button active</string>
+    <string name="notification_action_lock">🔒 Lock</string>
+    <string name="notification_action_unlock">🔓 Unlock</string>
+    <string name="notification_action_stop">🚫 STOP</string>
+    <string name="tap_to_open">Tap to open app settings</string>
+    <string name="service_started_toast">Floating button service started</string>
+    <string name="service_stopped_toast">Floating button service stopped</string>
+    <string name="overlay_started_toast">Full overlay active.</string>
+    <string name="overlay_hidden_toast">Full overlay closed.</string>
+    <string name="permission_required_overlay">Overlay permission is required to draw the black screen.</string>
+    <string name="permissions_all_granted">All required permissions granted.</string>
+    <string name="permissions_essential_granted">Overlay permission granted. Service starting.</string>
+    <string name="permissions_denied_overlay">Overlay permission denied. Cannot start service.</string>
 
 </resources>
