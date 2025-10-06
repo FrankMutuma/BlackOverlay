@@ -1,28 +1,25 @@
 package com.smarttechnologies.app.blackoverlay;
-
 import androidx.lifecycle.LiveData;
+import android.util.Log;
 import androidx.lifecycle.MutableLiveData;
-import androidx.lifecycle.ViewModel;
 
-public class SharedViewModel extends ViewModel {
+public class SharedViewModel {
+	private static final String TAG = "SharedPreferences";
 
-	private final MutableLiveData<String> currentTime = new MutableLiveData<>();
-	private final MutableLiveData<String> currentDate = new MutableLiveData<>();
+	private static final MutableLiveData<Boolean> isOverlayServiceRunning = new MutableLiveData<>();
+	//initialize default values
+	static {
+		isOverlayServiceRunning.setValue(false);
 
-	public LiveData<String> getCurrentTime() {
-		return currentTime;
 	}
 
-	public void setCurrentTime(String time) {
-		currentTime.setValue(time);
+	public static void setOverlayServiceRunningStatus(Boolean state) {
+		Log.i(TAG, "OverlayServiceState set to :" + state);
+		isOverlayServiceRunning.setValue(state);
 	}
 
-	public LiveData<String> getCurrentDate() {
-		return currentDate;
-	}
-
-	public void setCurrentDate(String date) {
-		currentDate.setValue(date);
+	public static LiveData<Boolean> getOverlayServiceRunningStatus() {
+		return isOverlayServiceRunning;
 	}
 
 }
