@@ -19,8 +19,6 @@ import android.widget.TextView;
 
 import androidx.annotation.Nullable;
 import androidx.appcompat.app.AppCompatActivity;
-// Removed unused ViewModel imports
-// import androidx.lifecycle.ViewModelProvider;
 import androidx.lifecycle.MutableLiveData;
 import androidx.localbroadcastmanager.content.LocalBroadcastManager;
 
@@ -29,7 +27,7 @@ public class OverlayActivity extends AppCompatActivity {
 	// --- Constants ---
 	public static final String OVERLAY_ACTIVITY_KILLED = "com.smarttechnologies.app.blackoverlay.OVERLAY_ACTIVITY_KILLED";
 	public static final String OVERLAY_ACTIVITY_STARTED = "com.smarttechnologies.app.blackoverlay.OVERLAY_ACTIVITY_STARTED";
-	
+
 	private static final String TAG = "OverlayActivity";
 	private static final int TAP_COUNT_TO_UNLOCK = 3;
 	private static final long TAP_TIMEOUT_MS = 500;
@@ -46,7 +44,6 @@ public class OverlayActivity extends AppCompatActivity {
 
 	// --- Managers/Services ---
 	private BroadcastReceiver finishReceiver;
-	// Removed: private SharedViewModel sharedViewModel; 
 	private BrightnessManager brightnessManager;
 
 	@Override
@@ -54,9 +51,6 @@ public class OverlayActivity extends AppCompatActivity {
 		super.onCreate(savedInstanceState);
 		setContentView(R.layout.black_overlay);
 		Log.d(TAG, "Activity created");
-
-		// 1. Removed: ViewModel initialization. Activity now observes static ClockUtils LiveData.
-		// 2. Removed: ClockUtils.initialize() call (Service is responsible for this).
 
 		// Initialize BrightnessManager
 		brightnessManager = new BrightnessManager(this);
@@ -96,7 +90,7 @@ public class OverlayActivity extends AppCompatActivity {
 
 		// Send the Broadcast that the overlay is closing
 		sendKilledBroadcast();
-		// CRITICAL: Unregister clock observer (decrement ref count in ClockUtils)
+		// Unregister clock observer (decrement ref count in ClockUtils)
 		ClockUtils.unregisterObserver();
 		// Restore brightness
 		brightnessManager.restoreBrightness();
@@ -154,7 +148,7 @@ public class OverlayActivity extends AppCompatActivity {
 
 		// Observe the static time LiveData from ClockUtils
 		ClockUtils.getTimeLiveData().observe(this, newTime -> {
-			Log.d(TAG, "Time updated to: " + newTime);
+			//Log.d(TAG, "Time updated to: " + newTime);
 			if (timeTextView != null) {
 				timeTextView.setText(newTime);
 				timeTextView.setContentDescription("Current time is " + newTime);
@@ -177,7 +171,7 @@ public class OverlayActivity extends AppCompatActivity {
 	private void setupActivity() {
 		Log.d(TAG, "Activity setup Starts");
 		// Setup the activity window
-		setupTransparentWindow();
+		initializeFullscreenOverlayFlags();
 
 		// Register broadcast receiver for remote finish
 		registerFinishReceiver();
@@ -218,10 +212,12 @@ public class OverlayActivity extends AppCompatActivity {
 	// UI/Window Setup
 	// --------------------------------------------------------------------------
 
-	private void setupTransparentWindow() {
+	//may review to black
+	private void initializeFullscreenOverlayFlags() {
 		Window window = getWindow();
 
 		// Make window transparent
+
 		window.setBackgroundDrawable(new ColorDrawable(Color.TRANSPARENT));
 
 		// Critical flags to not interrupt background apps
@@ -292,7 +288,6 @@ public class OverlayActivity extends AppCompatActivity {
 	// --------------------------------------------------------------------------
 
 	private void registerFinishReceiver() {
-		// FIX: Using LocalBroadcastManager for consistency and security
 		finishReceiver = new BroadcastReceiver() {
 			@Override
 			public void onReceive(Context context, Intent intent) {
@@ -324,7 +319,7 @@ public class OverlayActivity extends AppCompatActivity {
 
 					Log.d(TAG, "Tap detected - count: " + tapCount);
 
-					// Update unlock text view (optional)
+					// Update unlock text view
 					if (unlockTextView != null) {
 						int remaining = TAP_COUNT_TO_UNLOCK - tapCount;
 						if (remaining > 0) {

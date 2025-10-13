@@ -29,6 +29,7 @@ public class MainActivity extends AppCompatActivity implements PermissionManager
 	// UI Elements
 	private TextView timeTextView;
 	private TextView dateDayTextView;
+	private TextView debugTextView;
 	private ViewPager2 viewPager;
 
 	// State Tracking
@@ -56,8 +57,9 @@ public class MainActivity extends AppCompatActivity implements PermissionManager
 		viewPager = findViewById(R.id.view_pager);
 		TabLayout tabLayout = findViewById(R.id.tab_layout);
 		mainStartButton = findViewById(R.id.fab_start);
-		dateDayTextView = findViewById(R.id.main_date_and_day); // Using ID from your initial file
-		timeTextView = findViewById(R.id.main_time); // Using ID from your initial file
+		dateDayTextView = findViewById(R.id.main_date_and_day);
+		timeTextView = findViewById(R.id.main_time);
+		debugTextView = findViewById(R.id.txtdebug);
 
 		// --- ViewPager2 and TabLayout Setup ---
 		ViewPagerAdapter adapter = new ViewPagerAdapter(this); // Assuming this class exists
@@ -173,12 +175,18 @@ public class MainActivity extends AppCompatActivity implements PermissionManager
 
 	@Override
 	public void onEssentialPermissionGranted() {
+		if (debugTextView != null)
+			debugTextView.setText(R.string.permissions_essential_granted);// + "\n click here to grant the WriteSettings  permission");
+
 		Toast.makeText(this, getString(R.string.permissions_essential_granted), Toast.LENGTH_SHORT).show();
 		startFloatingService();
 	}
 
 	@Override
 	public void onPermissionsDenied() {
+		if (debugTextView != null)
+			debugTextView.setText(R.string.permissions_denied_overlay);
+
 		Toast.makeText(this, getString(R.string.permissions_denied_overlay), Toast.LENGTH_LONG).show();
 	}
 
@@ -200,5 +208,11 @@ public class MainActivity extends AppCompatActivity implements PermissionManager
 		// RESTORED: Using the static observer unregistration for ClockUtils
 		ClockUtils.unregisterObserver();
 		super.onPause();
+	}
+
+	@Override
+	protected void onDestroy() {
+		super.onDestroy();
+		permissionManager.clearCallback();
 	}
 }

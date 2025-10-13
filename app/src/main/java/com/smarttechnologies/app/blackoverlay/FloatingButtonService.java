@@ -9,6 +9,7 @@ import android.app.NotificationManager;
 import android.app.NotificationChannel;
 import android.app.Service;
 import android.content.Intent;
+import android.graphics.Color;
 import android.graphics.PixelFormat;
 import android.os.IBinder;
 import android.util.Log;
@@ -26,22 +27,23 @@ public class FloatingButtonService extends Service {
 	private AppPreferencesManager appPreferencesManager;
 
 	// Separated Receivers
+	private BroadcastReceiver screenStateReceiver;
 	private BroadcastReceiver sizeChangeReceiver;
 	private BroadcastReceiver overlayStateReceiver;
-	private BroadcastReceiver stateRequestReceiver; // NEW: For state synchronization with MainActivity
+	private BroadcastReceiver stateRequestReceiver; // For state synchronization with MainActivity
 
 	private View floatingView;
 	private View overlay; // Used for non-Activity based overlays
 
 	// Constants
 	public static final String ACTION_SERVICE_STATE_CHANGED = "com.smarttechnologies.app.blackoverlay.SERVICE_STATE_CHANGED";
-	public static final String ACTION_REPORT_STATE_REQUEST = "com.smarttechnologies.app.blackoverlay.REPORT_STATE_REQUEST"; // NEW Constant
-	private static final String CHANNEL_ID = "FloatingButtonServiceChannel";
+	public static final String ACTION_REPORT_STATE_REQUEST = "com.smarttechnologies.app.blackoverlay.REPORT_STATE_REQUEST";
+	private static final String CHANNEL_ID = "com.smarttechnologies.app.blackoverlay.FloatingButtonServiceChannel";
 	private static final String TAG = "FloatingButtonService";
 	private static final String ACTION_TOGGLE_OVERLAY = "ACTION_TOGGLE_OVERLAY";
 	private static final String ACTION_STOP_SERVICE = "ACTION_STOP_SERVICE";
 	private boolean isOverlayActive = false;
-	private boolean isStopPending = false; // <<< NEW FLAG: Tracks if a stop was requested while overlay was active
+	private boolean isStopPending = false; // Tracks if a stop was requested while overlay was active
 	private int floatingButtonSize;
 
 	@Override
@@ -57,7 +59,7 @@ public class FloatingButtonService extends Service {
 		ClockUtils.initialize();
 
 		// 2. Build and start the foreground service
-		NotificationChannel channel = new NotificationChannel(CHANNEL_ID, "Floating Button Service Channel",
+		NotificationChannel channel = new NotificationChannel(CHANNEL_ID, R.string.app_name + " Updates",
 				NotificationManager.IMPORTANCE_LOW);
 		NotificationManager manager = getSystemService(NotificationManager.class);
 		manager.createNotificationChannel(channel);
@@ -82,42 +84,45 @@ public class FloatingButtonService extends Service {
 		// Broadcast that the service has started
 		SharedViewModel.setOverlayServiceRunningStatus(true);
 		// Handle incoming actions from the notification.
-		if (intent != null && intent.getAction() != null) {
-			Log.d(TAG, "Action received from notification: " + intent.getAction());
+		if (intent == null || intent.getAction() == null)
+			//TODO: state restore implementation
+			return START_STICKY;
+		Log.d(TAG, "Action received from notification: " + intent.getAction());
 
-			switch (intent.getAction()) {
-			case ACTION_TOGGLE_OVERLAY:
-				if (isOverlayActive) {
+		switch (intent.getAction()) {
+		case ACTION_TOGGLE_OVERLAY:
+			if (isOverlayActive) {
 
-					hideBlackOverlay();
-				} else {
-					startLockScreen();
-				}
-				break;
-			case ACTION_STOP_SERVICE:
-				// <<< IMPROVEMENT: Decouple Stop from Destruction >>>
-				if (isOverlayActive) {
-					Log.d(TAG, "Notification STOP received. Killing active overlay first.");
-					isStopPending = true; // Set flag to proceed with shutdown after overlay is killed
-					// Call existing method to dismiss the overlay
-					hideBlackOverlay();
-				} else {
-					Log.d(TAG, "Notification STOP received. Overlay inactive. Stopping self immediately.");
-					stopSelf(); // Safe to stop immediately
-				}
-				break;
+				hideOverlay();
+			} else {
+				startOverlay();
 			}
-		} else
-			Log.e("FloatingButtonService",
-					"Received Intent but action is NULL. Cannot proceed with notification action.");
+			break;
+		case ACTION_STOP_SERVICE:
+			if (isOverlayActive) {
+				Log.d(TAG, "Notification STOP received. Killing active overlay first.");
+				isStopPending = true; // Set flag to proceed with shutdown after overlay is killed
+				// Call existing method to dismiss the overlay
+				hideOverlay();
+			} else {
+				Log.d(TAG, "Notification STOP received. Overlay inactive. Stopping self immediately.");
+				stopSelf(); // Safe to stop immediately
+			}
+			break;
+		}
 
 		return START_STICKY;
+
 	}
 
 	@Override
 	public void onDestroy() {
 		super.onDestroy();
-
+		//unregister screenStateReceiver
+		if (screenStateReceiver != null) {
+			unregisterReceiver(screenStateReceiver);
+			Log.d(TAG, "ScreenStateReceiver unregistered.");
+		}
 		// 1. Unregister the local receivers
 		if (overlayStateReceiver != null) {
 			LocalBroadcastManager.getInstance(this).unregisterReceiver(overlayStateReceiver);
@@ -149,11 +154,60 @@ public class FloatingButtonService extends Service {
 	}
 
 	private void registerReceivers() {
-		// 1. Overlay State Receiver: Handles START/KILL broadcasts from OverlayActivity
+
+		// --- Global Receiver Registration ---
+
+		IntentFilter screenFilter = new IntentFilter();
+		screenFilter.addAction(Intent.ACTION_SCREEN_OFF);
+		screenFilter.addAction(Intent.ACTION_USER_PRESENT);
+
+		screenStateReceiver = new BroadcastReceiver() {
+			@Override
+			public void onReceive(Context context, Intent intent) {
+				if (intent == null || intent.getAction() == null) {
+					return;
+				}
+				String action = intent.getAction();
+				Log.d(TAG, "Received action: " + action);
+
+				switch (action) {
+				case Intent.ACTION_SCREEN_OFF:
+					// 1. Screen is turning off (user pressed power button).
+					// HIDE the overlay and save power.
+					hideOverlay();
+					break;
+				case Intent.ACTION_USER_PRESENT:
+					// 2. User has unlocked the device (Keyguard dismissed).
+					// SHOW the overlay now that the user is active on the home screen/app.
+					startOverlay();
+					break;
+				// Optional: You might not strictly need SCREEN_ON, but it can be useful for debugging.
+				// case Intent.ACTION_SCREEN_ON:
+				//    Log.d(TAG, "Screen ON (before unlock)");
+				//    break;
+				}
+			}
+		};
+
+		registerReceiver(screenStateReceiver, screenFilter);
+		Log.d(TAG, "ScreenStateReceiver registered (Global)");
+
+		// --- Local Receiver Registration ---
+
+		// 1. Overlay State Receiver (Combines the filters for a cleaner look)
+		IntentFilter overlayFilter = new IntentFilter();
+		overlayFilter.addAction(OverlayActivity.OVERLAY_ACTIVITY_STARTED);
+		overlayFilter.addAction(OverlayActivity.OVERLAY_ACTIVITY_KILLED);
+
 		overlayStateReceiver = new BroadcastReceiver() {
 			@Override
 			public void onReceive(Context context, Intent intent) {
-				if (OverlayActivity.OVERLAY_ACTIVITY_STARTED.equals(intent.getAction())) {
+				if (intent == null || intent.getAction() == null) {
+					return;
+				}
+				String action = intent.getAction();
+
+				if (OverlayActivity.OVERLAY_ACTIVITY_STARTED.equals(action)) {
 					Log.i(TAG, "OverlayActivity has been STARTED! Hiding floating button.");
 
 					// Sync state
@@ -163,7 +217,7 @@ public class FloatingButtonService extends Service {
 					if (floatingView != null)
 						floatingView.setVisibility(View.GONE);
 					updateNotification();
-				} else if (OverlayActivity.OVERLAY_ACTIVITY_KILLED.equals(intent.getAction())) {
+				} else if (OverlayActivity.OVERLAY_ACTIVITY_KILLED.equals(action)) {
 					Log.i(TAG, "OverlayActivity has been destroyed! Showing floating button.");
 
 					// Sync state
@@ -180,31 +234,33 @@ public class FloatingButtonService extends Service {
 						isStopPending = false; // Reset the flag
 						stopSelf(); // Now it's safe to destroy the service
 					}
+
 				}
+
 			}
 		};
+		LocalBroadcastManager.getInstance(this).registerReceiver(overlayStateReceiver, overlayFilter);
+		Log.d(TAG, "Overlay State Receiver registered (Local)");
 
-		LocalBroadcastManager.getInstance(this).registerReceiver(overlayStateReceiver,
-				new IntentFilter(OverlayActivity.OVERLAY_ACTIVITY_STARTED));
-		LocalBroadcastManager.getInstance(this).registerReceiver(overlayStateReceiver,
-				new IntentFilter(OverlayActivity.OVERLAY_ACTIVITY_KILLED));
-		Log.d(TAG, "Overlay State Receiver registered");
-
-		// 2. Size Change Receiver: Handles size updates from LookFeelFragment
+		// 2. Size Change Receiver
 		sizeChangeReceiver = new BroadcastReceiver() {
 			@Override
 			public void onReceive(Context context, Intent intent) {
+				if (intent == null || intent.getAction() == null) {
+					return;
+				}
 				if ("FLOATING_LOCK_SIZE_CHANGED".equals(intent.getAction())) {
 					int newSize = intent.getIntExtra("size", floatingButtonSize);
 					updateFloatingButtonSize(newSize);
 				}
 			}
+
 		};
 		LocalBroadcastManager.getInstance(this).registerReceiver(sizeChangeReceiver,
 				new IntentFilter("FLOATING_LOCK_SIZE_CHANGED"));
 		Log.d(TAG, "Size Change Receiver registered (Local)");
 
-		// 3. State Request Receiver: Handles requests from MainActivity to report the service state. (NEW)
+		// 3. State Request Receiver
 		stateRequestReceiver = new BroadcastReceiver() {
 			@Override
 			public void onReceive(Context context, Intent intent) {
@@ -218,13 +274,15 @@ public class FloatingButtonService extends Service {
 					LocalBroadcastManager.getInstance(context).sendBroadcast(stateIntent);
 				}
 			}
+
 		};
 		LocalBroadcastManager.getInstance(this).registerReceiver(stateRequestReceiver,
 				new IntentFilter(ACTION_REPORT_STATE_REQUEST));
-		Log.d(TAG, "State Request Receiver registered (Local)"); // NEW log
+		Log.d(TAG, "State Request Receiver registered (Local)");
+
 	}
 
-	public void startLockScreen() {
+	public void startOverlay() {
 		String lockType = appPreferencesManager.getLockType();
 
 		final String VALUE_BLACK_OVERLAY = "black_overlay";
@@ -233,7 +291,7 @@ public class FloatingButtonService extends Service {
 		switch (lockType) {
 
 		case VALUE_BLACK_OVERLAY:
-			Log.d(TAG, "Applying Full Black Overlay.");
+			Log.d(TAG, "Applying Black Overlay.");
 			showBlackOverlay();
 			break;
 
@@ -264,6 +322,100 @@ public class FloatingButtonService extends Service {
 
 		} catch (Exception e) {
 			Log.e(TAG, "OverlayActivity startRequest Failed: " + e.getMessage());
+		} finally {
+			// NOTE: Vibration helper is handled elsewhere
+			VibrationHelper.vibrateDefault(this);
+		}
+	}
+
+	private void showPrivacyOverlay() {
+		Float brightness = 0.5f;
+		Boolean preventTouch = false;
+		Log.d(TAG, "PrivacyOverlay Started");
+		// Inflate and show the touchable overlay
+		if (overlay == null) {
+			overlay = LayoutInflater.from(this).inflate(R.layout.privacy_overlay, null);
+
+			// 1. Set the background color to Black
+			// You'll need to import android.graphics.Color
+			overlay.setBackgroundColor(Color.BLACK);
+
+			// 2. Set the alpha (transparency) of the overlay View to 50% (0.5f)
+			//overlay.setAlpha(brightness);
+			WindowManager.LayoutParams params;
+			if (!preventTouch) {
+				// Set up window manager params and add view
+				params = new WindowManager.LayoutParams(WindowManager.LayoutParams.MATCH_PARENT,
+						WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+
+						// --- MODIFIED FLAGS FOR TOUCH PASS-THROUGH ---
+						WindowManager.LayoutParams.FLAG_NOT_FOCUSABLE | WindowManager.LayoutParams.FLAG_NOT_TOUCHABLE // <-- THIS IS THE KEY CHANGE
+								| WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+								| WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+						// ---------------------------------------------
+
+						PixelFormat.TRANSLUCENT);
+			} else {
+
+				// Set up window manager params and add view
+				params = new WindowManager.LayoutParams(WindowManager.LayoutParams.MATCH_PARENT,
+						WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
+						WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN
+								| WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
+								| WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION
+								| WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS
+								| WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR
+								| WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
+						PixelFormat.TRANSLUCENT);
+			}
+			params.alpha = brightness;
+			try {
+				windowManager.addView(overlay, params);
+			} catch (Exception e) {
+				Log.w(TAG, "unable yo add overlay" + e);
+			}
+		} else
+
+		{
+			overlay.setVisibility(View.VISIBLE);
+		}
+
+		// NOTE: Vibration helper is handled elsewhere
+		VibrationHelper.vibrateDefault(this);
+
+		// Sync state and UI
+		if (floatingView != null)
+			floatingView.setVisibility(View.GONE);
+		isOverlayActive = true;
+
+		updateNotification();
+
+	}
+
+	private void hideOverlay() {
+		Log.d(TAG, "Hiding LockScreen.");
+		if (!isOverlayActive) {
+			Log.d(TAG, "Hiding LockScreen - No Overlay is active");
+			return;
+		}
+		if (overlay != null) {
+			overlay.setVisibility(View.GONE);
+			isOverlayActive = false;
+			if (floatingView != null) {
+				floatingView.setVisibility(View.VISIBLE);
+			}
+			updateNotification();
+
+			// Check for pending stop even if KILLED broadcast might be missed
+			if (isStopPending) {
+				Log.i(TAG, "Total Kill Fallback executed. Initiating final shutdown immediately.");
+				isStopPending = false;
+				stopSelf();
+			}
+
+			Log.d(TAG, "Privacy Overlay Succesfully Hidden ");
+		} else {
+			hideBlackOverlay();
 		}
 	}
 
@@ -321,60 +473,8 @@ public class FloatingButtonService extends Service {
 				Log.e(TAG, "M2 BlackOverlay Total Kill Request Failed: " + e.getMessage());
 			}
 		}
-	}
-
-	private void hideBlackOverlay2() {
-		Log.d(TAG, "Hiding black Overlay");
-
-		// Method 1: Start activity with exit flag
-		boolean method1Success = false;
-		try {
-			Intent intent = new Intent(this, OverlayActivity.class);
-			intent.addFlags(Intent.FLAG_ACTIVITY_CLEAR_TOP | Intent.FLAG_ACTIVITY_NEW_TASK);
-			intent.putExtra("EXIT", true); // Intentional for compatibility
-			startActivity(intent);
-			method1Success = true;
-			Log.d(TAG, "M1 BlackOverlay Kill Request Sent");
-		} catch (Exception e) {
-			Log.e(TAG, "M1 BlackOverlay Kill Request Sent Failed: " + e.getMessage());
-		}
-
-		// Method 2: Send broadcast ONLY if method 1 failed
-		if (!method1Success) {
-			try {
-				Intent broadcastIntent = new Intent("FINISH_OVERLAY");
-				LocalBroadcastManager.getInstance(this).sendBroadcast(broadcastIntent);
-				Log.d(TAG, "M2 BlackOverlay Kill Request Sent");
-			} catch (Exception e) {
-				Log.e(TAG, "M2 BlackOverlay Kill Request Failed: " + e.getMessage());
-			}
-		}
-	}
-
-	private void showPrivacyOverlay() {
-		Log.d(TAG, "PrivacyOverlay Started");
-		// Inflate and show the touchable overlay
-		if (overlay == null) {
-			overlay = LayoutInflater.from(this).inflate(R.layout.privacy_overlay, null);
-		}
-		// Set up window manager params and add view
-		WindowManager.LayoutParams params = new WindowManager.LayoutParams(WindowManager.LayoutParams.MATCH_PARENT,
-				WindowManager.LayoutParams.MATCH_PARENT, WindowManager.LayoutParams.TYPE_APPLICATION_OVERLAY,
-				WindowManager.LayoutParams.FLAG_LAYOUT_IN_SCREEN | WindowManager.LayoutParams.FLAG_KEEP_SCREEN_ON
-						| WindowManager.LayoutParams.FLAG_TRANSLUCENT_NAVIGATION
-						| WindowManager.LayoutParams.FLAG_TRANSLUCENT_STATUS
-						| WindowManager.LayoutParams.FLAG_LAYOUT_INSET_DECOR
-						| WindowManager.LayoutParams.FLAG_LAYOUT_NO_LIMITS,
-				PixelFormat.TRANSLUCENT);
-		windowManager.addView(overlay, params);
-		// NOTE: Assuming VibrationHelper.vibrateDefault(this) is handled elsewhere
-		// VibrationHelper.vibrateDefault(this);
-
-		// Sync state and UI
-		if (floatingView != null)
-			floatingView.setVisibility(View.GONE);
-		isOverlayActive = true;
-		updateNotification();
+		// NOTE: Vibration helper is handled elsewhere
+		VibrationHelper.vibrateDefault(this);
 	}
 
 	private void createFloatingButton() {
@@ -407,7 +507,11 @@ public class FloatingButtonService extends Service {
 		params.y = 100;
 
 		// 4. Add the view to the window manager.
-		windowManager.addView(floatingView, params);
+		try {
+			windowManager.addView(floatingView, params);
+		} catch (Exception e) {
+			Log.w(TAG, "unable to add floating view " + e);
+		}
 
 		// Add a combined touch and click listener to the view
 		floatingView.setOnTouchListener(new View.OnTouchListener() {
@@ -442,7 +546,7 @@ public class FloatingButtonService extends Service {
 						if (isOverlayActive) {
 							hideBlackOverlay();
 						} else {
-							startLockScreen();
+							startOverlay();
 						}
 					}
 					return true;
@@ -495,8 +599,8 @@ public class FloatingButtonService extends Service {
 
 		// Create a notification builder
 		Notification.Builder builder = new Notification.Builder(this, CHANNEL_ID)
-				.setContentTitle(getString(R.string.app_name)).setSmallIcon(R.drawable.ic_play_arrow_white_24dp)
-				.setContentIntent(openAppPendingIntent) // Clicking notification opens app
+				.setContentTitle(getString(R.string.notification_title))
+				.setSmallIcon(R.drawable.ic_play_arrow_white_24dp).setContentIntent(openAppPendingIntent) // Clicking notification opens app
 				.setOngoing(true).setCategory(Notification.CATEGORY_SERVICE)
 				.setVisibility(Notification.VISIBILITY_PUBLIC);
 
@@ -514,11 +618,10 @@ public class FloatingButtonService extends Service {
 		// Stop Service Action
 		Intent stopIntent = new Intent(this, FloatingButtonService.class);
 		stopIntent.setAction(ACTION_STOP_SERVICE);
-		PendingIntent stopPendingIntent = PendingIntent.getService(this, 0, stopIntent,
+		PendingIntent stopPendingIntent = PendingIntent.getService(this, 103, stopIntent,
 				PendingIntent.FLAG_CANCEL_CURRENT | PendingIntent.FLAG_IMMUTABLE);
 
 		// Add actions
-		// NOTE: Assuming ic_lock_open_white_24dp and ic_lock_white_24dp exist
 		int actionIcon = isOverlayActive ? R.drawable.ic_lock_open_white_24dp : R.drawable.ic_lock_white_24dp;
 		String actionText = isOverlayActive ? getString(R.string.notification_action_unlock)
 				: getString(R.string.notification_action_lock);

@@ -1,14 +1,13 @@
 <resources>
 
     <string name="app_name">Black Overlay</string>
-    <string name="text">this is the main blackscreen activity to be!</string>
     <string name="unlock">UNLOCK</string>
     <string name="unlock_description">tap here to unlock the screen</string>
     <string name="start">Start</string>
     <string name="stop">Stop</string>
     <string name="tab_look_feel">Look &amp; Feel</string>
     <string name="tab_settings">Settings</string>
-    <string name="notification_title">Black Overlay Service</string>
+    <string name="notification_title">Overlay Service Active</string>
     <string name="notification_status_active">Overlay is currently visible</string>
     <string name="notification_status_hidden">Floating button active</string>
     <string name="notification_action_lock">🔒 Lock</string>

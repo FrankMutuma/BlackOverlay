@@ -1,18 +1,21 @@
-plugins {
-id 'com.android.application'
-// ADDED: Although not explicitly shown, adding the Kotlin plugin is best practice
-// and works with the updated Kotlin stdlib version you tested.
-id 'org.jetbrains.kotlin.android'
+Plugins {
+ id 'com.android.application'
+ id 'kotlin-android'
+// id 'com.android.library'
+ // ADDED: Apply the Google Services plugin, which was defined at the top level
+// id 'google.gms.google-services'
+ // ADDED: Apply the Firebase Crashlytics plugin, which was defined at the top level
+ //id 'google.firebase.crashlytics'
 }
 
 android {
-compileSdk 36 // CONFIRMED WORKING
+compileSdk 36
 namespace "com.smarttechnologies.app.blackoverlay"
 
 defaultConfig {
 applicationId "com.smarttechnologies.app.blackoverlay"
-minSdk 24
-targetSdk 36 // CONFIRMED WORKING
+minSdk 30
+targetSdk 36
 versionCode 1
 versionName "1.0"
 
@@ -21,29 +24,30 @@ testInstrumentationRunner "androidx.test.runner.AndroidJUnitRunner"
 
 buildTypes {
 release {
-minifyEnabled false // Confirmed for your debugging workflow
+minifyEnabled false
 proguardFiles getDefaultProguardFile('proguard-android-optimize.txt'), 'proguard-rules.pro'
 }
 }
 compileOptions {
-sourceCompatibility JavaVersion.VERSION_1_8
-targetCompatibility JavaVersion.VERSION_1_8
+sourceCompatibility JavaVersion.VERSION_17//JavaVersion.VERSION_1_8
+targetCompatibility JavaVersion.VERSION_17
 }
-kotlinOptions { // ADDED: Required with the org.jetbrains.kotlin.android plugin
-jvmTarget = "1.8"
+kotlinOptions { //Required with the org.jetbrains.kotlin.android plugin
+jvmTarget = "17"
 }
-buildFeatures { // ADDED: From your last successful file
+buildFeatures {
 viewBinding true
 }
+}
+def kotlinVersion = "2.2.20"
 dependencies {
-// ADDED: From your last successful file
-implementation 'androidx.annotation:annotation:1.8.0'
+implementation 'androidx.annotation:annotation:1.8.0'//Last compatible
 
 // Required for useSimpleSummaryProvider attribute in preferences.xml
-implementation 'androidx.preference:preference-ktx:1.2.1' // LATEST
+implementation 'androidx.preference:preference-ktx:1.2.1'//WORKING
 
 // Required for AppCompatActivity and general AndroidX compatibility
-implementation 'androidx.appcompat:appcompat:1.7.1' // CONFIRMED WORKING
+implementation 'androidx.appcompat:appcompat:1.7.1' // WORKING
 
 // Essential for modern full-screen control (WindowCompat, WindowInsetsControllerCompat)
 // REVERTED to OLD version to maintain build stability
@@ -54,22 +58,34 @@ implementation 'androidx.core:core-ktx:1.13.1'
 implementation 'androidx.activity:activity-ktx:1.9.0'
 
 // For Material Design components (FloatingActionButton, Toolbar, TabLayout, etc.)
-implementation 'com.google.android.material:material:1.12.0' // LATEST (From your previous attempts)
+implementation 'com.google.android.material:material:1.12.0'
 
 // For ConstraintLayout
-implementation 'androidx.constraintlayout:constraintlayout:2.2.1' // LATEST (From your previous attempts)
+implementation 'androidx.constraintlayout:constraintlayout:2.2.1'
 
-// If you plan to use Fragments for the tabs
-implementation 'androidx.fragment:fragment-ktx:1.8.9' // LATEST (From your previous attempts)
-implementation 'androidx.viewpager2:viewpager2:1.1.0' // LATEST (From your previous attempts)
+// I plan to use Fragments for the tabs
+implementation 'androidx.fragment:fragment-ktx:1.8.9'
+implementation 'androidx.viewpager2:viewpager2:1.1.0'
 
-// Existing test dependencies (keep these)
+// Existing test dependencies
 testImplementation 'junit:junit:4.13.2'
-androidTestImplementation 'androidx.test.ext:junit:1.3.0' // CONFIRMED WORKING
-androidTestImplementation 'androidx.test.espresso:espresso-core:3.7.0' // CONFIRMED WORKING
-
+androidTestImplementation 'androidx.test.ext:junit:1.3.0' // WORKING
+androidTestImplementation 'androidx.test.espresso:espresso-core:3.7.0' //WORKING
 // Kotlin Standard Library
-implementation 'org.jetbrains.kotlin:kotlin-stdlib-jdk8:2.2.20' // CONFIRMED WORKING
+implementation 'org.jetbrains.kotlin:kotlin-stdlib:$kotlinVersion'
+}
+/*
+compileOptions {
+sourceCompatibility JavaVersion.VERSION_1_8
+targetCompatibility JavaVersion.VERSION_1_8
+}
 }
 
+dependencies {
+implementation 'androidx.appcompat:appcompat:1.7.0-alpha01'
+implementation 'com.google.android.material:material:1.8.0-rc01'
+implementation 'androidx.constraintlayout:constraintlayout:2.2.0-alpha05'
 }
+
+
+*/

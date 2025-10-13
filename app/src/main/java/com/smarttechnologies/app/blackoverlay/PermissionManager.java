@@ -1,7 +1,8 @@
 package com.smarttechnologies.app.blackoverlay;
 
-import android.app.Activity;
+import android.Manifest;
 import android.content.Intent;
+import android.content.pm.PackageManager;
 import android.net.Uri;
 import android.os.Build;
 import android.provider.Settings;
@@ -9,7 +10,7 @@ import android.util.Log;
 import android.widget.Toast;
 import androidx.activity.result.ActivityResultLauncher;
 import androidx.activity.result.contract.ActivityResultContracts;
-import androidx.annotation.NonNull;
+import androidx.core.content.ContextCompat;
 import androidx.appcompat.app.AlertDialog;
 import androidx.appcompat.app.AppCompatActivity;
 
@@ -18,67 +19,167 @@ public class PermissionManager {
 	private static final String TAG = "PermissionManager";
 	private final AppCompatActivity activity;
 	private final AppPreferencesManager prefsManager;
+
+	// Launchers for the three distinct permission types
 	private final ActivityResultLauncher<Intent> overlayPermissionLauncher;
 	private final ActivityResultLauncher<Intent> writeSettingsLauncher;
+	private final ActivityResultLauncher<String> notificationPermissionLauncher;
+
+	// Listener fields for primary startup flow and single, on-demand requests
 	private PermissionCallback callback;
+	private SinglePermissionResultListener singleUseWriteSettingsListener;
+
+	// --- Interfaces for Callbacks ---
 
 	public interface PermissionCallback {
-		void onAllPermissionsGranted();
+		void onAllPermissionsGranted(); // All 3 permissions granted
 
-		void onEssentialPermissionGranted(); // Overlay is granted but not Write Settings
+		void onEssentialPermissionGranted(); // Essential (Overlay + Notification) granted, Write Settings denied
 
-		void onPermissionsDenied();
+		void onPermissionsDenied(); // Critical permission (Overlay) denied
 	}
 
-	public PermissionManager(AppCompatActivity activity, PermissionCallback callback) {
+	/**
+	* Simple listener used for optional, on-demand requests (like Write Settings).
+	*/
+	public interface SinglePermissionResultListener {
+		void onResult(boolean granted);
+	}
+
+	// --- Constructor and Initialization ---
+
+	public PermissionManager(final AppCompatActivity activity, PermissionCallback callback) {
 		this.activity = activity;
 		this.callback = callback;
 		this.prefsManager = AppPreferencesManager.getInstance(activity);
 
-		// Launcher for the OVERLAY permission
+		// 1. Launcher for NOTIFICATION (Runtime)
+		notificationPermissionLauncher = activity
+				.registerForActivityResult(new ActivityResultContracts.RequestPermission(), isGranted -> {
+					if (isGranted) {
+						Log.d(TAG, "Notification permission granted. Proceeding to Overlay check.");
+						checkOverlayPermission();
+					} else {
+						Log.d(TAG, "Notification permission denied. Showing critical warning dialog.");
+						showNotificationCriticalWarning();
+					}
+				});
+
+		// 2. Launcher for OVERLAY (Special)
 		overlayPermissionLauncher = activity
 				.registerForActivityResult(new ActivityResultContracts.StartActivityForResult(), result -> {
 					if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
 						if (Settings.canDrawOverlays(activity)) {
 							Log.d(TAG, "Overlay permission granted.");
-							// Now check for Write Settings permission
+							// Overlay is granted, now check for Write Settings
 							checkWriteSettingsPermission();
 						} else {
-							Log.d(TAG, "Overlay permission denied.");
+							Log.d(TAG, "Overlay permission denied. Cannot function without overlay.");
 							handlePermissionDenial("Overlay");
 						}
 					}
 				});
 
-		// Launcher for the WRITE_SETTINGS permission
+		// 3. Launcher for WRITE_SETTINGS (Special)
 		writeSettingsLauncher = activity.registerForActivityResult(new ActivityResultContracts.StartActivityForResult(),
 				result -> {
-					if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M && Settings.System.canWrite(activity)) {
-						Log.d(TAG, "Write Settings permission granted.");
-						prefsManager.resetTotalDenials();
-						if (callback != null) {
-							callback.onAllPermissionsGranted();
-						}
+					boolean granted = Build.VERSION.SDK_INT >= Build.VERSION_CODES.M
+							&& Settings.System.canWrite(activity);
+
+					if (singleUseWriteSettingsListener != null) {
+						// Scenario 1: Handling an on-demand request
+						singleUseWriteSettingsListener.onResult(granted);
+						singleUseWriteSettingsListener = null; // Clear listener
 					} else {
-						Log.d(TAG, "Write Settings permission denied.");
-						// Even if Write Settings is denied, we can still function with overlay
-						if (callback != null) {
-							callback.onEssentialPermissionGranted();
+						// Scenario 2: Handling the initial startup chain request
+						if (granted) {
+							Log.d(TAG, "Startup Write Settings granted.");
+							prefsManager.resetTotalDenials();
+							if (callback != null) {
+								callback.onAllPermissionsGranted();
+							}
+						} else {
+							Log.d(TAG, "Startup Write Settings denied.");
+							if (callback != null) {
+								callback.onEssentialPermissionGranted();
+							}
 						}
 					}
 				});
 	}
 
 	/**
-	* Checks and requests all necessary permissions to start the app.
-	* This is the main entry point, called from onCreate.
+	* Main entry point: Checks and requests all necessary permissions sequentially.
 	*/
 	public void checkAndRequestPermissions() {
-		// 1. First, check Overlay Permission (absolutely essential)
+		// 1. Notification (API 33+)
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+			if (!hasNotificationPermission()) {
+				requestNotificationPermission();
+				return;
+			}
+		}
+
+		// 2. Overlay (Always essential)
+		checkOverlayPermission();
+	}
+
+	// --- PUBLIC On-Demand Request Method ---
+
+	/**
+	* Public method to specifically check and request the Write Settings permission
+	* when a user tries to activate an enhanced feature later in the app lifecycle.
+	* * @param listener A simple listener to notify the caller of the result.
+	*/
+	public void requestWriteSettingsOnDemand(SinglePermissionResultListener listener) {
+		// 1. Check current status
+		if (hasWriteSettingsPermission()) {
+			listener.onResult(true);
+			return;
+		}
+
+		// 2. Temporarily store the single-use listener
+		this.singleUseWriteSettingsListener = listener;
+
+		// 3. Show rationale and request
+		showWriteSettingsExplanationOnDemand();
+	}
+
+	// --- Notification Permission Flow ---
+
+	public boolean hasNotificationPermission() {
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.TIRAMISU) {
+			return ContextCompat.checkSelfPermission(activity,
+					Manifest.permission.POST_NOTIFICATIONS) == PackageManager.PERMISSION_GRANTED;
+		}
+		return true;
+	}
+
+	private void requestNotificationPermission() {
+		Log.d(TAG, "Requesting Notification permission (API 33+)...");
+		notificationPermissionLauncher.launch(Manifest.permission.POST_NOTIFICATIONS);
+	}
+
+	private void showNotificationCriticalWarning() {
+		new AlertDialog.Builder(activity).setTitle("Warning: Control Mechanism Missing").setMessage(
+				"You have denied the Notification permission. Without this, you will **not** have the easy 'stop/hide overlay' controls in the notification drawer.\n\n"
+						+ "You must rely only on the optional dismissal method. We strongly recommend granting this permission for safety.")
+				.setPositiveButton("Continue Anyway", (dialog, which) -> {
+					checkOverlayPermission();
+				}).setNegativeButton("Go to Settings", (dialog, which) -> {
+					Intent intent = new Intent(Settings.ACTION_APP_NOTIFICATION_SETTINGS);
+					intent.putExtra(Settings.EXTRA_APP_PACKAGE, activity.getPackageName());
+					activity.startActivity(intent);
+					checkOverlayPermission();
+				}).setCancelable(false).show();
+	}
+
+	// --- Overlay Permission Flow (Essential) ---
+
+	private void checkOverlayPermission() {
 		if (!hasOverlayPermission()) {
-			requestOverlayPermission();
+			showOverlayExplanation();
 		} else {
-			// Overlay is already granted, check Write Settings
 			checkWriteSettingsPermission();
 		}
 	}
@@ -90,15 +191,26 @@ public class PermissionManager {
 		return true;
 	}
 
-	public boolean hasWriteSettingsPermission() {
-		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-			return Settings.System.canWrite(activity);
-		}
-		return true;
+	/**
+	* Rationale: Explains *why* Overlay is needed and *how* to enable it.
+	*/
+	private void showOverlayExplanation() {
+		Log.d(TAG, "Showing overlay permission rationale...");
+		// Note: Using a generic name for robust compilation, ideally use the app's real label.
+		String appName = "Black Overlay App";
+
+		new AlertDialog.Builder(activity).setTitle("Crucial Step: Enable Screen Overlay").setMessage(
+				"This app's entire purpose is to darken your screen. To work, it requires the 'Display over other apps' (Overlay) permission.\n\n"
+						+ "**How to enable it (READ CAREFULLY):**\n" + "1. Tap 'Grant' below to go to Settings.\n"
+						+ "2. Find this app's name ('" + appName + "') in the list.\n"
+						+ "3. Toggle the switch to ON.\n\n" + "Without this, the app cannot function.")
+				.setPositiveButton("Grant", (dialog, which) -> {
+					requestOverlayPermission();
+				}).setCancelable(false).show();
 	}
 
 	private void requestOverlayPermission() {
-		Log.d(TAG, "Requesting overlay permission...");
+		Log.d(TAG, "Launching overlay settings intent...");
 		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
 			Intent intent = new Intent(Settings.ACTION_MANAGE_OVERLAY_PERMISSION,
 					Uri.parse("package:" + activity.getPackageName()));
@@ -106,11 +218,21 @@ public class PermissionManager {
 		}
 	}
 
+	// --- Write Settings Permission Flow (Optional/Enhanced) ---
+
+	public boolean hasWriteSettingsPermission() {
+		if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
+			return Settings.System.canWrite(activity);
+		}
+		return true;
+	}
+
+	// For Startup Chain (checks denial limit)
 	private void checkWriteSettingsPermission() {
 		if (!hasWriteSettingsPermission()) {
-			showWriteSettingsExplanation();
+			showWriteSettingsExplanationStartup();
 		} else {
-			// Both permissions are granted
+			// All permissions are granted from the chain
 			if (callback != null) {
 				callback.onAllPermissionsGranted();
 			}
@@ -127,12 +249,10 @@ public class PermissionManager {
 	}
 
 	/**
-	* Shows a rational dialog explaining why Write Settings permission is needed.
+	* Shows rationale for the STARTUP CHAIN (respects denial count).
 	*/
-	private void showWriteSettingsExplanation() {
-		// Check if we've hit the limit for asking
+	private void showWriteSettingsExplanationStartup() {
 		if (prefsManager.getTotalDenials() >= AppPreferencesManager.MAX_TOTAL_DENIALS) {
-			// We've asked too many times, just proceed with overlay only
 			if (callback != null) {
 				callback.onEssentialPermissionGranted();
 			}
@@ -149,6 +269,23 @@ public class PermissionManager {
 						callback.onEssentialPermissionGranted();
 					}
 				}).setCancelable(false).show();
+	}
+
+	/**
+	* Shows rationale for the ON-DEMAND request (does NOT respect denial count).
+	*/
+	private void showWriteSettingsExplanationOnDemand() {
+		new AlertDialog.Builder(activity).setTitle("Enhanced Dimming Required").setMessage(
+				"To enable the darkest screen settings, the 'Modify system settings' permission is needed. This allows the app to safely lower system brightness.")
+				.setPositiveButton("Grant", (dialog, which) -> {
+					requestWriteSettingsPermission();
+				}).setNegativeButton("Cancel", (dialog, which) -> {
+					// Cancel means denied for this specific feature request
+					if (singleUseWriteSettingsListener != null) {
+						singleUseWriteSettingsListener.onResult(false);
+						singleUseWriteSettingsListener = null;
+					}
+				}).setCancelable(true).show();
 	}
 
 	private void handlePermissionDenial(String permissionType) {
